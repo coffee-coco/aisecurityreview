@@ -1,0 +1,89 @@
+# NIST AI 600-1 - AI RMF Generative AI Profile (July 2024): the 12 risks unique to or exacerbated by GAI.
+# Titles and text are the official risk summaries from Section 2 of NIST AI 600-1.
+# question/scope/baseline/triggers are the review layer (same conventions as csf_questions.yaml).
+id: ai600
+name: NIST AI 600-1 Generative AI Profile
+short: GAI Profile
+version: "2024"
+order: 20
+source: https://nvlpubs.nist.gov/nistpubs/ai/NIST.AI.600-1.pdf
+applies_when: {any: [system:ai_agent, kw:generative ai, kw:genai, kw:llm, kw:large language model, kw:gpt, kw:chatbot]}
+function:
+  id: AI600
+  title: Generative AI risks
+  text: "Risks that are novel to or exacerbated by the use of generative AI (GAI)."
+  color: RC
+requirements:
+  - id: AI600.CBRN
+    title: CBRN Information or Capabilities
+    text: "Eased access to or synthesis of materially nefarious information or design capabilities related to chemical, biological, radiological, or nuclear (CBRN) weapons or other dangerous materials or agents."
+    question: "Could this generative AI system provide or help synthesise dangerous chemical, biological, radiological or nuclear information, and what safeguards prevent it?"
+    scope: project
+    triggers: [chemical, biolog, radiolog, nuclear, weapon, cbrn, laboratory]
+  - id: AI600.CONFABULATION
+    title: Confabulation
+    text: "The production of confidently stated but erroneous or false content (known colloquially as \"hallucinations\" or \"fabrications\") by which users may be misled or deceived."
+    question: "How does the solution detect or limit confidently wrong (hallucinated) output, and how are users warned not to rely on it unchecked?"
+    scope: project
+    triggers: [hallucinat, advice, decision, customer, grounding, rag]
+  - id: AI600.VIOLENT-CONTENT
+    title: Dangerous, Violent, or Hateful Content
+    text: "Eased production of and access to violent, inciting, radicalizing, or threatening content as well as recommendations to carry out self-harm or conduct illegal activities. Includes difficulty controlling public exposure to hateful and disparaging or stereotyping content."
+    question: "What content filtering and moderation prevents the system producing violent, hateful, self-harm or illegal-activity content?"
+    scope: project
+    triggers: [flag:internet_facing, exposure:public, chatbot, content generation, moderation]
+  - id: AI600.DATA-PRIVACY
+    title: Data Privacy
+    text: "Impacts due to leakage and unauthorized use, disclosure, or de-anonymization of biometric, health, location, or other personally identifiable information or sensitive data."
+    question: "How is personal or sensitive data kept out of prompts, training data, outputs and logs, and prevented from leaking or being re-identified?"
+    scope: project
+    triggers: [flag:personal_data, privacy, pii, biometric, health, location]
+  - id: AI600.ENVIRONMENTAL
+    title: Environmental Impacts
+    text: "Impacts due to high compute resource utilization in training or operating GAI models, and related outcomes that may adversely impact ecosystems."
+    question: "Has the compute and energy footprint of training or operating the generative model been considered?"
+    scope: org
+    triggers: [flag:uses_ai, model training, fine-tun, gpu, sustainab]
+  - id: AI600.HARMFUL-BIAS
+    title: Harmful Bias or Homogenization
+    text: "Amplification and exacerbation of historical, societal, and systemic biases; performance disparities between sub-groups or languages, possibly due to non-representative training data, that result in discrimination, amplification of biases, or incorrect presumptions about performance; undesired homogeneity that skews system or model outputs, which may be erroneous, lead to ill-founded decision-making, or amplify harmful biases."
+    question: "How has the system been tested for biased or uneven performance across user groups and languages?"
+    scope: project
+    triggers: [bias, fairness, discriminat, language, hiring, eligibility, demographic]
+  - id: AI600.HUMAN-AI-CONFIG
+    title: Human-AI Configuration
+    text: "Arrangements of or interactions between a human and an AI system which can result in the human inappropriately anthropomorphizing GAI systems or experiencing algorithmic aversion, automation bias, over-reliance, or emotional entanglement with GAI systems."
+    question: "How does the design prevent users over-relying on, or forming inappropriate trust in, the generative AI system?"
+    scope: project
+    triggers: [chatbot, assistant, companion, advice, automation bias, over-reliance]
+  - id: AI600.INFORMATION-INTEGRITY
+    title: Information Integrity
+    text: "Lowered barrier to entry to generate and support the exchange and consumption of content which may not distinguish fact from opinion or fiction or acknowledge uncertainties, or could be leveraged for large-scale dis- and mis-information campaigns."
+    question: "Is generated content labelled or traceable as AI-generated, and how is its use for misinformation prevented?"
+    scope: project
+    triggers: [content generation, publish, marketing, social media, news, provenance]
+  - id: AI600.INFORMATION-SECURITY
+    title: Information Security
+    text: "Lowered barriers for offensive cyber capabilities, including via automated discovery and exploitation of vulnerabilities to ease hacking, malware, phishing, offensive cyber operations, or other cyberattacks; increased attack surface for targeted cyberattacks, which may compromise a system's availability or the confidentiality or integrity of training data, code, or model weights."
+    question: "How are the model, prompts, training data, code and model weights protected against attacks such as prompt injection and data poisoning, and how is misuse for offensive cyber activity prevented?"
+    scope: project
+    baseline: true
+    triggers: [prompt injection, model weights, code generation, poisoning, jailbreak]
+  - id: AI600.INTELLECTUAL-PROPERTY
+    title: Intellectual Property
+    text: "Eased production or replication of alleged copyrighted, trademarked, or licensed content without authorization (possibly in situations which do not fall under fair use); eased exposure of trade secrets; or plagiarism or illegal replication."
+    question: "How does the solution avoid reproducing copyrighted or licensed content and exposing trade secrets in prompts or outputs?"
+    scope: project
+    triggers: [copyright, trademark, licen, trade secret, content generation, data:ip]
+  - id: AI600.OBSCENE-CONTENT
+    title: Obscene, Degrading, and/or Abusive Content
+    text: "Eased production of and access to obscene, degrading, and/or abusive imagery which can cause harm, including synthetic child sexual abuse material (CSAM), and nonconsensual intimate images (NCII) of adults."
+    question: "If the system can generate or transform images or media, what prevents obscene, degrading or abusive output such as CSAM or NCII?"
+    scope: project
+    triggers: [image generation, text-to-image, image editing, video generation, diffusion, deepfake]
+  - id: AI600.VALUE-CHAIN
+    title: Value Chain and Component Integration
+    text: "Non-transparent or untraceable integration of upstream third-party components, including data that has been improperly obtained or not processed and cleaned due to increased automation from GAI; improper supplier vetting across the AI lifecycle; or other issues that diminish transparency or accountability for downstream users."
+    question: "Which upstream models, datasets, plugins and providers are integrated, and how were they vetted and documented for provenance?"
+    scope: project
+    triggers: [flag:third_party, openai, anthropic, bedrock, azure openai, hugging, foundation model, plugin, mcp]

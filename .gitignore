@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+.idea/
+.env
+data/reviews.db*
+data/raw/
+.DS_Store
+uploads/*
+uploads/**

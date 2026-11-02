@@ -1,0 +1,103 @@
+# OWASP Top 10:2025 (final release) - web application security risks.
+# Titles and text are condensed from the official Description sections; cwe lists the notable CWEs
+# named in each official Background section (the full mapped list is on each risk page).
+# question/scope/baseline/triggers are the review layer (same conventions as csf_questions.yaml).
+# controls / csf are left empty: OWASP publishes no authoritative SP 800-53 / CSF mapping.
+id: owasp_top10
+name: OWASP Top 10
+short: OWASP Top 10
+version: "2025"
+order: 30
+source: https://owasp.org/Top10/2025/
+applies_when: {any: [system:web_app, system:api, system:mobile_app, exposure:public]}
+function:
+  id: OWASP-TOP10
+  title: OWASP Top 10:2025
+  text: "A standard awareness document for developers and web application security representing a broad consensus about the most critical security risks to web applications."
+  color: PR
+requirements:
+  - id: OWASP.A01-2025
+    title: "A01:2025 Broken Access Control"
+    text: "Access control enforces policy such that users cannot act outside of their intended permissions. Failures typically lead to unauthorized information disclosure, modification or destruction of all data, or performing a business function outside the user's limits."
+    question: "How is authorisation enforced server-side on every request and object (deny by default, record ownership, no IDOR, CORS restricted)?"
+    scope: project
+    baseline: true
+    triggers: [access control, authoriz, authoris, role, tenant, admin]
+    cwe: [CWE-200, CWE-201, CWE-918, CWE-352]
+    examples: ["Except for public resources, deny by default", "Enforce record ownership in the model layer", "Log access control failures and alert on repeated failures"]
+  - id: OWASP.A02-2025
+    title: "A02:2025 Security Misconfiguration"
+    text: "Security misconfiguration is when a system, application, or cloud service is set up incorrectly from a security perspective, creating vulnerabilities."
+    question: "How are the application stack and cloud services hardened, kept consistent across environments and verified (no default accounts, debug features, verbose errors or missing security headers)?"
+    scope: project
+    baseline: true
+    triggers: [configuration, hardening, cloud, header, s3, storage]
+    cwe: [CWE-16, CWE-611]
+    examples: ["Repeatable, automated hardening process for every environment", "Send security headers and directives to clients", "Use identity federation or short-lived credentials instead of static keys"]
+  - id: OWASP.A03-2025
+    title: "A03:2025 Software Supply Chain Failures"
+    text: "Software supply chain failures are breakdowns or other compromises in the process of building, distributing, or updating software. They are often caused by vulnerabilities or malicious changes in third-party code, tools, or other dependencies that the system relies on."
+    question: "How are dependencies (including transitive), build tooling and CI/CD tracked, scanned, patched and protected (SBOM, trusted sources, signed artefacts, separation of duties)?"
+    scope: project
+    baseline: true
+    triggers: [dependenc, library, npm, pip, maven, ci/cd, pipeline, sbom, open source]
+    cwe: [CWE-1104, CWE-1329, CWE-1395]
+    examples: ["Centrally generate and manage an SBOM", "Continuously monitor CVE/NVD/OSV for the components in use", "Harden the code repository, build server and artefact repositories"]
+  - id: OWASP.A04-2025
+    title: "A04:2025 Cryptographic Failures"
+    text: "Failures related to the lack of cryptography, insufficiently strong cryptography, leaking of cryptographic keys, and related errors. All data in transit should be encrypted, and sensitive data at rest identified and protected."
+    question: "Which data is encrypted in transit and at rest, with which algorithms and protocols, and how are keys, passwords and randomness managed?"
+    scope: project
+    triggers: [flag:personal_data, data:payment_card, data:credentials, encrypt, tls, password, key management]
+    cwe: [CWE-327, CWE-331, CWE-1241, CWE-338]
+    examples: ["TLS 1.2+ with forward secrecy and HSTS", "Store passwords with an adaptive, salted hash (Argon2, scrypt, PBKDF2)", "Keep the most sensitive keys in an HSM or cloud KMS"]
+  - id: OWASP.A05-2025
+    title: "A05:2025 Injection"
+    text: "An injection vulnerability is an application flaw that allows untrusted user input to be sent to an interpreter (e.g. a browser, database, the command line) and causes the interpreter to execute parts of that input as commands."
+    question: "How is untrusted input kept separate from commands and queries (parameterised queries, safe APIs, output encoding, server-side validation) across SQL, NoSQL, OS, LDAP and template interpreters?"
+    scope: project
+    baseline: true
+    triggers: [database, sql, query, form, input, search]
+    cwe: [CWE-79, CWE-89, CWE-78, CWE-77, CWE-20]
+    examples: ["Use parameterised interfaces or ORMs", "Positive server-side input validation", "SAST/DAST/IAST and fuzzing in the CI/CD pipeline"]
+  - id: OWASP.A06-2025
+    title: "A06:2025 Insecure Design"
+    text: "Insecure design is a broad category representing different weaknesses, expressed as \"missing or ineffective control design\", including flaws in business logic. An insecure design cannot be fixed by a perfect implementation."
+    question: "Has the design been threat modelled (authentication, access control, business logic and key flows), with misuse cases and tenant segregation built in?"
+    scope: project
+    triggers: [flag:new, design, business logic, threat model, workflow, tenant]
+    cwe: [CWE-256, CWE-269, CWE-434, CWE-501, CWE-522]
+    examples: ["Use threat modelling for critical flows", "Write unit and integration tests for use-cases and misuse-cases", "Segregate tenants robustly by design throughout all tiers"]
+  - id: OWASP.A07-2025
+    title: "A07:2025 Authentication Failures"
+    text: "When an attacker is able to trick a system into recognizing an invalid or incorrect user as legitimate, this vulnerability is present."
+    question: "How are users authenticated (MFA, breached-password checks, brute-force protection, secure session management, token audience and issuer validation)?"
+    scope: project
+    baseline: true
+    triggers: [login, authenticat, password, sso, session, token, mfa]
+    cwe: [CWE-259, CWE-297, CWE-287, CWE-384, CWE-798]
+    examples: ["Implement and enforce multi-factor authentication", "Limit or increasingly delay failed login attempts", "Validate aud and iss claims and scopes for JWTs"]
+  - id: OWASP.A08-2025
+    title: "A08:2025 Software or Data Integrity Failures"
+    text: "Software and data integrity failures relate to code and infrastructure that does not protect against invalid or untrusted code or data being treated as trusted and valid."
+    question: "How is the integrity of code, updates, plugins and serialised data verified (signatures, trusted repositories, protected CI/CD, no untrusted deserialisation)?"
+    scope: project
+    triggers: [ci/cd, pipeline, deserializ, serializ, plugin, auto-update, cdn, firmware]
+    cwe: [CWE-829, CWE-915, CWE-502]
+    examples: ["Use digital signatures to verify software or data", "Consume dependencies only from trusted repositories", "Review process for code and configuration changes"]
+  - id: OWASP.A09-2025
+    title: "A09:2025 Security Logging and Alerting Failures"
+    text: "Without logging and monitoring, attacks and breaches cannot be detected, and without alerting it is very difficult to respond quickly and effectively during a security incident."
+    question: "Which security events are logged (with integrity and without sensitive data), where are they monitored, and what alerts and playbooks trigger a response?"
+    scope: project
+    triggers: [flag:internet_facing, logging, monitoring, audit, siem, alert]
+    cwe: [CWE-117, CWE-532, CWE-778]
+    examples: ["Log login, access control and input validation failures with user context", "Encode log data to prevent log injection", "Establish monitoring and alerting use cases with playbooks"]
+  - id: OWASP.A10-2025
+    title: "A10:2025 Mishandling of Exceptional Conditions"
+    text: "Mishandling exceptional conditions in software happens when programs fail to prevent, detect, and respond to unusual and unpredictable situations, which leads to crashes, unexpected behavior, and sometimes vulnerabilities."
+    question: "How does the application handle errors and abnormal conditions (centralised handling, fail closed, transaction rollback, no sensitive error messages, resource limits)?"
+    scope: project
+    triggers: [error handling, exception, transaction, payment, rate limit, resilien]
+    cwe: [CWE-209, CWE-234, CWE-274, CWE-476, CWE-636]
+    examples: ["Catch errors where they occur plus a global exception handler", "Roll back the whole transaction and fail closed", "Apply rate limiting, resource quotas and throttling"]

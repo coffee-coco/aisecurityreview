@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sentinel · AI Security Review</title>
+  <meta name="description" content="AI-assisted security design reviews for new initiatives and changes, driven by NIST CSF 2.0 with SP 800-53 controls and Checkov technical checks." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%238b5cf6'/%3E%3Cstop offset='1' stop-color='%2322d3ee'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath fill='url(%23g)' d='M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3z'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/css/app.css" />
+  <link rel="stylesheet" href="/static/css/mappings.css" />
+  <link rel="stylesheet" href="/static/css/threats.css" />
+</head>
+<body>
+  <div class="bg-glow" aria-hidden="true"></div>
+  <div class="app">
+    <aside class="sidebar" id="sidebar">
+      <a href="#/" class="brand" id="brand-link">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24"><defs><linearGradient id="bm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8b5cf6"/><stop offset="1" stop-color="#22d3ee"/></linearGradient></defs><path fill="url(#bm)" d="M12 2 4 5v6c0 5 3.4 9.7 8 11 4.6-1.3 8-6 8-11V5l-8-3z"/><path d="m8.5 12 2.5 2.5 4.5-5" fill="none" stroke="#0b0f19" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span class="brand-text"><strong>Sentinel</strong><small>AI Security Review</small></span>
+      </a>
+      <nav class="nav" aria-label="Main">
+        <a href="#/" class="nav-item" data-route="queue" id="nav-queue"></a>
+        <a href="#/new" class="nav-item" data-route="new" id="nav-new"></a>
+        <a href="#/threat-models" class="nav-item" data-route="threat-models" id="nav-threat-models"></a>
+        <a href="#/library" class="nav-item" data-route="library" id="nav-library"></a>
+        <a href="#/mappings" class="nav-item" data-route="mappings" id="nav-mappings"></a>
+        <a href="#/settings" class="nav-item" data-route="settings" id="nav-settings"></a>
+      </nav>
+      <div class="sidebar-foot">
+        <a href="#/settings" class="ai-pill" id="ai-pill"></a>
+        <div class="catalog-foot" id="catalog-foot"></div>
+      </div>
+    </aside>
+    <main class="main" id="view" tabindex="-1"></main>
+  </div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+  <div id="overlay-root"></div>
+  <script type="module" src="/static/js/app.js"></script>
+</body>
+</html>

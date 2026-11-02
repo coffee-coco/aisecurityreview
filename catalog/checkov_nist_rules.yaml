@@ -1,0 +1,209 @@
+# Mapping of Checkov checks -> NIST SP 800-53 Rev 5 controls.
+#
+# Open-source Checkov does not ship a NIST mapping, so this file defines one.
+# Every control a check receives is recorded with its provenance in
+# data/catalog.json (check["mapping"]):
+#   via: rule     - a keyword rule below matched the check name (confidence: high)
+#   via: category - default for the check's Checkov category (confidence: low)
+#
+# Only rule-derived controls are used to link checks to requirements, and only
+# through the curated specs in catalog/csf_check_links.yaml. Category defaults
+# are informational (shown on the check, used for the 800-53 control drawer).
+#
+# Edit freely - then re-run `python scripts/build_catalog.py`.
+
+category_controls:
+  LOGGING: [AU-2, AU-12]
+  ENCRYPTION: [SC-13]
+  GENERAL_SECURITY: [CM-6]
+  NETWORKING: [SC-7]
+  IAM: [AC-3, AC-6]
+  BACKUP_AND_RECOVERY: [CP-9]
+  CONVENTION: [CM-8]
+  SECRETS: [IA-5]
+  KUBERNETES: [CM-6, CM-7]
+  APPLICATION_SECURITY: [SA-8, SI-10]
+  SUPPLY_CHAIN: [SR-3, SA-10]
+  API_SECURITY: [AC-3, SC-8]
+  SAST: [SA-11]
+  AI_AND_ML: [SA-8, SI-4]
+
+# Each rule: label (shown to reviewers as the link reason), pattern
+# (case-insensitive Python regex against the check name), controls, optional
+# `exclude` regex and optional `categories` to restrict the rule.
+keyword_rules:
+  # --- Cryptography -------------------------------------------------------
+  - label: encryption in transit
+    pattern: '\b(tls|ssl|https|in[- ]transit|transit encryption|secure transport|ciphers?|certificates?|cert[- ]file|hsts|protocol version|starttls|clear ?text|plain ?text|unencrypted (channel|connection|protocol)|strict-ssl|insecure (protocol|connection|transport))'
+    controls: [SC-8, SC-8(1), SC-13]
+  - label: encryption at rest
+    pattern: '(encrypt|\bsse\b|at[- ]rest|\bcmks?\b|\bkms\b|customer[- ]managed keys?|\bcmek\b|\bbyok\b|double encryption|infrastructure encryption)'
+    exclude: '\b(tls|ssl|https|in[- ]transit|transit|clear ?text)\b|key polic'
+    controls: [SC-28, SC-28(1)]
+  - label: key management
+    pattern: '\b(kms|cmks?|cmek|byok|hsm|customer[- ]managed keys?|key rotation|rotat(e|ed|es|ion)|key vault keys?|keyvault keys?|key expir\w*)'
+    controls: [SC-12]
+
+  # --- Identity & access --------------------------------------------------
+  - label: multi-factor authentication
+    pattern: '\b(mfa|multi[- ]factor|two[- ]factor|2fa)\b'
+    controls: [IA-2, IA-2(1), IA-2(2)]
+  - label: password policy
+    pattern: 'password (policy|length|reuse|expir|complex)|minimum length|password requires|requires? (at least one )?(uppercase|lowercase|symbol|number)'
+    controls: [IA-5(1)]
+  - label: least privilege
+    pattern: '(\broot (account|user|access)|privileg|\badmin\b|administrat|full access|\*:\*|wildcard|least privilege|escalat|assume ?role|over[- ]?permissive|write access without constraints|write-all|cluster-admin)'
+    controls: [AC-6]
+  - label: access control / IAM
+    pattern: '\b(iam|rbac|role[- ]based|roles and clusterroles|clusterroles?|role ?bindings?|permissions?|policy attached|iam polic(y|ies)|access polic(y|ies)|managed identit\w*|access control lists?|acls?|resource[- ]based polic\w*|bucket polic(y|ies)|principals?)\b'
+    controls: [AC-3]
+  - label: account management
+    pattern: '\b(iam users?|user accounts?|service accounts?|default (users?|accounts?|service accounts?)|guest (users?|accounts?)|local (users?|accounts?)|admin users?|root (account|user)|account lockout)\b'
+    exclude: 'container|dockerfile|last user'
+    controls: [AC-2]
+  - label: authentication
+    pattern: '\b(authenticat\w*|oidc|openid|saml|oauth2?|implicit flow|password flow|active directory|azure ad|aad|entra|ldap|sso|single sign|identity provider|cognito|anonymous|basic auth\w*|auth[- ]?(file|token)|token-auth|client cert\w*|mutual tls|mtls|api keys?|iam auth\w*|security (definitions?|schemes?|requirements?)|logins?)\b'
+    controls: [IA-2, IA-8]
+  - label: authorisation
+    pattern: '\b(authori[sz]ers?|authori[sz]ation[- ](type|mode)|alwaysallow|access control)'
+    controls: [AC-3]
+  - label: credentials / secrets
+    pattern: '\b(secrets?|credentials?|access keys?|api keys?|tokens?|private keys?|passwords?)\b'
+    exclude: 'password (policy|length|reuse|expir|complex)|minimum length'
+    controls: [IA-5]
+  - label: no embedded secrets
+    pattern: '(hard[- ]?coded|embedded (secret|credential|password)|secrets? (as|in) (environment|env)|environment variables?.*(secret|credential|password|key)|(secret|credential|password)s?.*environment variables?|plain ?text (secret|password|credential))'
+    controls: [IA-5(7)]
+  - label: session management
+    pattern: '\b(session|sessions|idle (timeout|session)|inactivity|request-timeout|idle-timeout)\b'
+    controls: [AC-12, SC-10]
+  - label: instance metadata hardening
+    pattern: '\b(imds|imdsv2|metadata (service|server|endpoint|concealment)|instance metadata)'
+    controls: [CM-6]
+  - label: cross-account sharing
+    pattern: '\b(cross[- ]account|shared with|external (accounts?|principals?|identit\w*)|organi[sz]ation access|publicly shared|sharing|shared access signature|sas)\b'
+    controls: [AC-3, AC-21]
+
+  # --- Network ------------------------------------------------------------
+  - label: public exposure
+    pattern: '\b(public|publicly|0\.0\.0\.0|::/0|internet|open to|exposed|world[- ]?(readable|writable|accessible))'
+    exclude: 'public key|publickey'
+    controls: [AC-3, SC-7, AC-22]
+  - label: network filtering
+    pattern: '\b(security groups?|firewall|ingress|egress|nsgs?|network security groups?|network polic\w*|port \d+|ssh|rdp|3389|network acls?|nacls?|allowed ports|ip restrict\w*|ip (allow|white) ?list\w*|ip rules?|source ranges?|authorized networks?)\b'
+    controls: [SC-7, AC-4]
+  - label: private networking
+    pattern: '\b(vpc|private (endpoints?|link|access|cluster|network|ip|subnets?)|privatelink|subnets?|vnets?|virtual networks?|service endpoints?|network isolation)\b'
+    exclude: 'flow log'
+    controls: [SC-7]
+  - label: WAF / DDoS protection
+    pattern: '\b(waf|wafv2|web application firewall|shield|ddos)\b'
+    controls: [SC-5, SC-7, SI-4]
+  - label: DNS security
+    pattern: '\b(dns|dnssec)\b'
+    controls: [SC-20, SC-21]
+  - label: remote access
+    pattern: '\b(remote (access|desktop|debugging|management)|bastion|serial console|just[- ]in[- ]time|jit|vpn|session manager)\b'
+    controls: [AC-17]
+  - label: CORS
+    pattern: '\bcors\b'
+    controls: [AC-4]
+
+  # --- Logging & monitoring ----------------------------------------------
+  - label: audit logging
+    pattern: '\b(logs?|logging|logged|log_\w+|audit\w*|trails?|cloudtrail|flow logs?|diagnostic\w*|stackdriver|log analytics)\b'
+    controls: [AU-2, AU-3, AU-12]
+  - label: log retention
+    pattern: '\b(retention|retain|retained|maxage|max-age|maxbackup|maxsize)\b'
+    exclude: '\b(backups?|snapshots?)\b'
+    controls: [AU-11, SI-12]
+  - label: log protection
+    pattern: '\b(logs?|logging|trails?|cloudtrail|audit\w*)\b.*(encrypt|kms|cmks?|integrity|validation|immutable|object lock|tamper)|(encrypt\w*|kms|cmks?)\b.*\b(logs?|logging|trails?|cloudtrail|audit\w*)\b'
+    controls: [AU-9]
+  - label: security monitoring
+    pattern: '\b(monitor\w*|alarms?|alerts?|insights|guardduty|security cent(er|re)|defender|detective|security hub|threat (detection|protection)|advanced threat|inspector|sentinel|security contacts?|notify about|email notifications?|anomal\w*|network watcher)'
+    controls: [SI-4, CA-7]
+  - label: threat intelligence
+    pattern: '\b(threat intel\w*|idps|intrusion (detection|prevention))'
+    controls: [SI-4, PM-16]
+
+  # --- Vulnerability & patching ------------------------------------------
+  - label: vulnerability scanning
+    pattern: '\b(vulnerab\w*|scan on push|image scan\w*|scanning|scans?|quarantine)\b'
+    controls: [RA-5]
+  - label: patching / supported versions
+    pattern: '\b(patch\w*|auto[- ]?upgrade|automatic (minor )?(version )?upgrades?|auto minor version|minor version|latest (version|tls|python|php|java|runtime|node|\.net)|deprecated|outdated|end of life|eol|supported (versions?|runtimes?)|maintenance window|upgrades?)\b'
+    exclude: 'maintainer'
+    controls: [SI-2, SA-22]
+
+  # --- Resilience ---------------------------------------------------------
+  - label: backups
+    pattern: '\b(backups?|snapshots?|point[- ]in[- ]time|pitr|versioning|recovery|restore)\b'
+    controls: [CP-9]
+  - label: deletion protection / immutability
+    pattern: '\b(deletion protection|termination protection|prevent[- ]destroy|soft[- ]delete|purge protection|delete protection|retain on delete|object lock|mfa delete|vault lock|immutab\w*)'
+    exclude: '\b(tags?|images?)\b'
+    controls: [CP-9, SI-7]
+  - label: redundancy / failover
+    pattern: '\b(multi[- ]?az|zone[- ]?redundan\w*|availability zones?|replicas?|geo[- ]?redundan\w*|high[- ]?availab\w*|replication|failover|cross[- ]region|redundan\w*|multi[- ]region)'
+    exclude: '\b(trails?|cloudtrail|logs?|logging)\b'
+    controls: [CP-6, CP-7, CP-10, SC-36]
+  - label: capacity / resource limits
+    pattern: '\b(resource limits?|cpu (limits?|requests?)|memory (limits?|requests?)|limits? should be set|requests? should be set|quotas?|throttl\w*|rate[- ]?limit\w*|concurrency|reserved concurren\w*|auto[- ]?scal\w*|capacity|event-qps)'
+    controls: [SC-5, SC-6]
+  - label: health checks
+    pattern: '\b(health ?checks?|liveness|readiness|probes?)\b'
+    controls: [CP-10]
+
+  # --- Workload hardening -------------------------------------------------
+  - label: workload hardening
+    pattern: '(privileged|allowprivilegeescalation|privilege escalation|root containers?|admission of root|as root|user is not root|run as (root|non-root)|non-root|high uid|read[- ]?only (root )?file ?system|capabilit\w*|cap_sys_admin|net_raw|seccomp|apparmor|selinux|host (process id|network|ipc|pid)|hostpid|hostipc|hostnetwork|host ?path|hostport|security ?context|pod security|default namespace|user for the container|last user|\bsudo\b|\bapt\b|copy is used instead of add|update instructions|tiller|dashboard|profiling|protect-kernel-defaults|read-only-port|proc ?mount)'
+    controls: [CM-6, CM-7, SC-39]
+  - label: image pinning
+    pattern: '\b(image tag|tag should be fixed|latest tag|non latest|digest|image pull policy|immutable (image )?tags?|tags? (are|is|be) immutable|trusted registr\w*|base image)'
+    controls: [CM-2, SI-7]
+  - label: integrity / pinning
+    pattern: '\b(integrity|checksums?|commit (sha|hash)|sha(1|256|512)?|pinned|pinning|pin (to|actions?|versions?)|module sources?|lock ?files?|provenance|sbom|attestations?)\b'
+    exclude: '\b(logs?|trails?|cloudtrail|audit\w*)\b|integrity monitoring'
+    controls: [SI-7, SR-4]
+  - label: code signing
+    pattern: '(code[- ]?sign\w*|signed (commits?|images?|artifacts?|packages?|tags?)|\bsign(s|ing)? (commits?|images?|artifacts?|packages?)|\bcosign\b|signature (verification|validation)|content trust|binary authori[sz]ation|notary)'
+    controls: [SI-7(15), CM-14]
+  - label: software allow-listing
+    pattern: '(admission (control|plugin|controller)s?|alwayspullimages|alwaysadmit|allow[- ]?list\w*|whitelist\w*|application control|adaptive application|binary authori[sz]ation|trusted (images?|registr\w*)|allowed (images?|registr\w*))'
+    exclude: '\b(ip|ips|address\w*|cidr|network\w*)\b'
+    controls: [CM-7(5), CM-11]
+  - label: boot integrity
+    pattern: '(shielded|secure boot|vtpm|integrity monitoring|measured boot|trusted launch)'
+    controls: [SI-7(9)]
+  - label: confidential computing
+    pattern: '(confidential (comput\w*|vms?|nodes?|instances?)|enclaves?|data masking)'
+    controls: [SC-4, SC-39]
+  - label: debug / error disclosure
+    pattern: '\b(debug\w*|verbose|error (messages?|pages?)|stack traces?|detailed error\w*)'
+    controls: [SI-11]
+  - label: input validation
+    pattern: '(input validation|request validat\w*|validat\w* (requests?|inputs?|body|parameters)|injection|\bxss\b|sanitiz\w*|maximum number of items|max(imum)? ?(items|length))'
+    controls: [SI-10]
+  - label: isolation
+    pattern: '\b(sandbox\w*|isolation|isolated|dedicated tenancy)\b'
+    controls: [SC-39, SC-2]
+
+  # --- Change & supply chain ---------------------------------------------
+  - label: change control
+    pattern: '\b(branch protection|protected branch\w*|approv\w*|code ?owners|required reviews?|reviewers?|approving reviews?|status checks?|force push\w*|dismiss stale|merge)'
+    controls: [CM-3, CM-5]
+  - label: CI/CD & source control hardening
+    pattern: '(pipeline|workflow|actions?|runners?|artifacts?|build|jobs?|steps?|curl|netcat|wget|shell|unsecure commands|write-all|permissions?|secrets?|environment|branch|repositor\w*|commits?|webhooks?|deploy keys?|merge|approv\w*|organi[sz]ation|members?|sbom|images?|containers?|scripts?|commands?)'
+    categories: [SUPPLY_CHAIN]
+    controls: [SA-10, SA-15]
+  - label: asset inventory / tagging
+    pattern: '\b(tags?|tagged|labels?|inventory|aws config|config recorder|configuration recorder)\b'
+    exclude: '\b(images?|immutable|latest|version|maintainer)\b|tag should be fixed'
+    controls: [CM-8]
+  - label: third-party components
+    pattern: '\b(module sources?|source is|third[- ]party|dependenc\w*|commit hash|version number)\b'
+    controls: [SR-3, SR-11]
+  - label: AI / ML service
+    pattern: '\b(guardrails?|prompts?|bedrock|openai|sagemaker|machine learning|cognitive (services?|accounts?)|vertex ai|ai services?|ai search|notebook instances?)\b'
+    controls: [SA-8]

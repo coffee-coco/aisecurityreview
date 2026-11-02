@@ -1,0 +1,511 @@
+# NIST AI Risk Management Framework 1.0 (NIST AI 100-1) - all 72 subcategories.
+# Function, category and subcategory text is the official wording (AI RMF Core / AIRC Playbook).
+# question/scope/baseline/triggers are the review layer (same conventions as csf_questions.yaml);
+# examples are summarised from the Playbook "Suggested Actions".
+# controls / csf are left empty: no authoritative AI RMF -> SP 800-53 crosswalk is applied here.
+id: airmf
+name: NIST AI Risk Management Framework
+short: AI RMF
+version: "1.0"
+order: 10
+source: https://airc.nist.gov/airmf-resources/playbook/
+applies_when: {any: [flag:uses_ai, system:ai_agent, system:ai_ml]}
+functions:
+  - id: AIRMF.GV
+    title: GOVERN
+    text: "A culture of risk management is cultivated and present."
+    color: GV
+    categories:
+      - id: AIRMF.GV-1
+        title: GOVERN 1
+        text: "Policies, processes, procedures and practices across the organization related to the mapping, measuring and managing of AI risks are in place, transparent, and implemented effectively."
+        requirements:
+          - id: AIRMF.GV-1.1
+            text: "Legal and regulatory requirements involving AI are understood, managed, and documented."
+            question: "Which AI-specific legal and regulatory requirements (privacy, anti-discrimination, sector rules, AI regulation) apply to this system, and how are they documented and managed?"
+            scope: org
+            triggers: [flag:uses_ai, flag:personal_data, regulat, compliance, privacy, gdpr, ai act]
+            examples: ["Maintain awareness of legal requirements specific to the sector and deployment context", "Align AI risk management with applicable legal standards"]
+          - id: AIRMF.GV-1.2
+            text: "The characteristics of trustworthy AI are integrated into organizational policies, processes, and procedures."
+            question: "Which organisational AI policies and standards (responsible AI, model testing, data governance) apply to this system, and are any deviations planned?"
+            scope: org
+            triggers: [flag:uses_ai, policy, responsible ai, trustworth]
+            examples: ["Connect AI governance to existing governance and risk controls", "Detail model testing, validation and change management requirements"]
+          - id: AIRMF.GV-1.3
+            text: "Processes and procedures are in place to determine the needed level of risk management activities based on the organization's risk tolerance."
+            question: "What AI risk tier has this system been assigned, and what level of risk management activity does that tier require?"
+            scope: org
+            triggers: [flag:uses_ai, risk tolerance, risk appetite, high risk]
+          - id: AIRMF.GV-1.4
+            text: "The risk management process and its outcomes are established through transparent policies, procedures, and other controls based on organizational risk priorities."
+            question: "How are AI risk decisions for this system recorded and made transparent to the people who govern it?"
+            scope: org
+            triggers: [flag:uses_ai, governance, risk management]
+          - id: AIRMF.GV-1.5
+            text: "Ongoing monitoring and periodic review of the risk management process and its outcomes are planned, organizational roles and responsibilities are clearly defined, including determining the frequency of periodic review."
+            question: "How often will the AI risks of this system be reviewed after go-live, and who owns that review?"
+            scope: org
+            triggers: [flag:uses_ai, periodic review, monitoring]
+          - id: AIRMF.GV-1.6
+            text: "Mechanisms are in place to inventory AI systems and are resourced according to organizational risk priorities."
+            question: "Will this AI system (models, agents, providers, data sources) be registered in the organisation's AI inventory?"
+            scope: org
+            triggers: [flag:uses_ai, flag:new, inventory, register]
+          - id: AIRMF.GV-1.7
+            text: "Processes and procedures are in place for decommissioning and phasing out of AI systems safely and in a manner that does not increase risks or decrease the organization's trustworthiness."
+            question: "How will this AI system or the model it relies on be safely decommissioned or replaced, including retained data and dependent processes?"
+            scope: org
+            triggers: [flag:uses_ai, decommission, retire, end of life, replac]
+      - id: AIRMF.GV-2
+        title: GOVERN 2
+        text: "Accountability structures are in place so that the appropriate teams and individuals are empowered, responsible, and trained for mapping, measuring, and managing AI risks."
+        requirements:
+          - id: AIRMF.GV-2.1
+            text: "Roles and responsibilities and lines of communication related to mapping, measuring, and managing AI risks are documented and are clear to individuals and teams throughout the organization."
+            question: "Who is responsible for mapping, measuring and managing the AI risks of this system, and how are AI issues escalated?"
+            scope: org
+            triggers: [flag:uses_ai, raci, roles, responsibilit, accountab]
+          - id: AIRMF.GV-2.2
+            text: "The organization's personnel and partners receive AI risk management training to enable them to perform their duties and responsibilities consistent with related policies, procedures, and agreements."
+            question: "Have the people building, operating and overseeing this AI system received AI risk management training?"
+            scope: org
+            triggers: [flag:uses_ai, awareness, training]
+          - id: AIRMF.GV-2.3
+            text: "Executive leadership of the organization takes responsibility for decisions about risks associated with AI system development and deployment."
+            question: "Which executive accepts the AI risks of developing and deploying this system?"
+            scope: org
+            triggers: [flag:uses_ai, executive, high risk, critical]
+      - id: AIRMF.GV-3
+        title: GOVERN 3
+        text: "Workforce diversity, equity, inclusion, and accessibility processes are prioritized in the mapping, measuring, and managing of AI risks throughout the lifecycle."
+        requirements:
+          - id: AIRMF.GV-3.1
+            text: "Decision-makings related to mapping, measuring, and managing AI risks throughout the lifecycle is informed by a diverse team (e.g., diversity of demographics, disciplines, experience, expertise, and backgrounds)."
+            question: "Which disciplines and perspectives (domain, legal, privacy, security, affected users) inform AI risk decisions for this system?"
+            scope: org
+            triggers: [flag:uses_ai, diverse, interdisciplinary, domain expert]
+          - id: AIRMF.GV-3.2
+            text: "Policies and procedures are in place to define and differentiate roles and responsibilities for human-AI configurations and oversight of AI systems."
+            question: "What human oversight roles exist for this system (approver, operator, reviewer), and what can each of them override or stop?"
+            scope: org
+            triggers: [system:ai_agent, human oversight, human-in-the-loop, human in the loop, autonomous, approval]
+      - id: AIRMF.GV-4
+        title: GOVERN 4
+        text: "Organizational teams are committed to a culture that considers and communicates AI risk."
+        requirements:
+          - id: AIRMF.GV-4.1
+            text: "Organizational policies, and practices are in place to foster a critical thinking and safety-first mindset in the design, development, deployment, and uses of AI systems to minimize negative impacts."
+            question: "How are design decisions for this AI system effectively challenged (independent review, model audit, red teaming)?"
+            scope: org
+            triggers: [flag:uses_ai, red team, safety]
+            examples: ["Include oversight functions (legal, compliance, risk) from the outset of system design", "Use effective challenge mechanisms such as model audits or red-teaming"]
+          - id: AIRMF.GV-4.2
+            text: "Organizational teams document the risks and potential impacts of the AI technology they design, develop, deploy, evaluate and use, and communicate about the impacts more broadly."
+            question: "Has an AI impact assessment been completed for this system, and who has it been shared with?"
+            scope: org
+            triggers: [flag:uses_ai, impact assessment, flag:personal_data]
+            examples: ["Establish impact assessment policies and processes for AI systems", "Use impact assessments to inform broader evaluations of AI system risk"]
+          - id: AIRMF.GV-4.3
+            text: "Organizational practices are in place to enable AI testing, identification of incidents, and information sharing."
+            question: "How will AI-specific incidents and limitations found in testing or production be recorded and shared?"
+            scope: org
+            triggers: [flag:uses_ai, incident, testing]
+            examples: ["Establish policies for reporting and documenting AI incident response", "Establish guidelines for handling incidents related to AI system risks and performance"]
+      - id: AIRMF.GV-5
+        title: GOVERN 5
+        text: "Processes are in place for robust engagement with relevant AI actors."
+        requirements:
+          - id: AIRMF.GV-5.1
+            text: "Organizational policies and practices are in place to collect, consider, prioritize, and integrate feedback from those external to the team that developed or deployed the AI system regarding the potential individual and societal impacts related to AI risks."
+            question: "How will feedback from users and others outside the delivery team about the impacts of this AI system be collected and acted on?"
+            scope: org
+            triggers: [flag:uses_ai, flag:internet_facing, customer, public, feedback]
+            examples: ["Recourse mechanisms for faulty AI system outputs", "Bug bounties and user-interaction research"]
+          - id: AIRMF.GV-5.2
+            text: "Mechanisms are established to enable AI actors to regularly incorporate adjudicated feedback from relevant AI actors into system design and implementation."
+            question: "How is adjudicated feedback about this AI system fed back into its design and implementation?"
+            scope: org
+            triggers: [flag:uses_ai, feedback]
+            examples: ["Define reasonable risk tolerances informed by laws, regulation and industry standards", "Establish policies for approval, conditional approval and disapproval of AI system deployment"]
+      - id: AIRMF.GV-6
+        title: GOVERN 6
+        text: "Policies and procedures are in place to address AI risks and benefits arising from third-party software and data and other supply chain issues."
+        requirements:
+          - id: AIRMF.GV-6.1
+            text: "Policies and procedures are in place that address AI risks associated with third-party entities, including risks of infringement of a third party's intellectual property or other rights."
+            question: "Which third-party AI providers, models, datasets or tools does this system use, and how have their risks (including IP and licensing) been assessed?"
+            scope: org
+            triggers: [flag:third_party, flag:uses_ai, vendor, openai, anthropic, intellectual property, licen]
+            examples: ["Require transparency into third-party training data, algorithms, assumptions and limitations", "Test third-party AI systems thoroughly before use"]
+          - id: AIRMF.GV-6.2
+            text: "Contingency processes are in place to handle failures or incidents in third-party data or AI systems deemed to be high-risk."
+            question: "What happens if a third-party model or AI service this system depends on fails, degrades or is compromised?"
+            scope: org
+            triggers: [flag:third_party, flag:uses_ai, high risk, critical, failover]
+            examples: ["Consider redundancy mechanisms for vital third-party AI systems", "Verify incident response plans address third-party AI systems"]
+  - id: AIRMF.MP
+    title: MAP
+    text: "Context is recognized and risks related to context are identified."
+    color: ID
+    categories:
+      - id: AIRMF.MP-1
+        title: MAP 1
+        text: "Context is established and understood."
+        requirements:
+          - id: AIRMF.MP-1.1
+            text: "Intended purpose, potentially beneficial uses, context-specific laws, norms and expectations, and prospective settings in which the AI system will be deployed are understood and documented. Considerations include: specific set or types of users along with their expectations; potential positive and negative impacts of system uses to individuals, communities, organizations, society, and the planet; assumptions and related limitations about AI system purposes; uses and risks across the development or product AI lifecycle; TEVV and system metrics."
+            question: "What is the documented intended purpose, user population and deployment setting of this AI system, and what uses are explicitly out of scope?"
+            scope: project
+            baseline: true
+            triggers: [flag:uses_ai]
+            examples: ["Define and document the task, purpose, minimum functionality and benefits of the AI system", "Identify whether non-AI alternatives would lead to more trustworthy outcomes"]
+          - id: AIRMF.MP-1.2
+            text: "Inter-disciplinary AI actors, competencies, skills and capacities for establishing context reflect demographic diversity and broad domain and user experience expertise, and their participation is documented. Opportunities for interdisciplinary collaboration are prioritized."
+            question: "Which domain, user-experience and risk specialists helped establish the context for this AI system?"
+            scope: org
+            triggers: [flag:uses_ai, interdisciplinary, domain expert]
+          - id: AIRMF.MP-1.3
+            text: "The organization's mission and relevant goals for the AI technology are understood and documented."
+            question: "How does this AI system support the organisation's mission and stated goals for AI?"
+            scope: org
+            triggers: [flag:uses_ai, mission, strategy]
+          - id: AIRMF.MP-1.4
+            text: "The business value or context of business use has been clearly defined or - in the case of assessing existing AI systems - re-evaluated."
+            question: "What business value is this AI system expected to deliver, and how will that be re-evaluated over time?"
+            scope: project
+            triggers: [business case, business value, roi]
+          - id: AIRMF.MP-1.5
+            text: "Organizational risk tolerances are determined and documented."
+            question: "What AI risk tolerance applies to this system (e.g. acceptable error rates, harms that are never acceptable)?"
+            scope: org
+            triggers: [flag:uses_ai, risk tolerance, risk appetite]
+          - id: AIRMF.MP-1.6
+            text: "System requirements (e.g., \"the system shall respect the privacy of its users\") are elicited from and understood by relevant AI actors. Design decisions take socio-technical implications into account to address AI risks."
+            question: "Which non-functional requirements (privacy, safety, fairness, security) have been elicited for this AI system, and how do they shape the design?"
+            scope: project
+            triggers: [system requirements, non-functional, privacy by design, socio-technical]
+      - id: AIRMF.MP-2
+        title: MAP 2
+        text: "Categorization of the AI system is performed."
+        requirements:
+          - id: AIRMF.MP-2.1
+            text: "The specific task, and methods used to implement the task, that the AI system will support is defined (e.g., classifiers, generative models, recommenders)."
+            question: "What specific task does the AI perform, and which methods implement it (classifier, generative model, retrieval-augmented generation, agent with tools)?"
+            scope: project
+            triggers: [classifier, generative, recommend, prediction, llm, rag, agent]
+          - id: AIRMF.MP-2.2
+            text: "Information about the AI system's knowledge limits and how system output may be utilized and overseen by humans is documented. Documentation provides sufficient information to assist relevant AI actors when making informed decisions and taking subsequent actions."
+            question: "How are the AI system's knowledge limits documented, and how will humans use and oversee its outputs?"
+            scope: project
+            triggers: [system:ai_agent, system:ai_ml, human oversight, decision support, automated decision]
+          - id: AIRMF.MP-2.3
+            text: "Scientific integrity and TEVV considerations are identified and documented, including those related to experimental design, data collection and selection (e.g., availability, representativeness, suitability), system trustworthiness, and construct validation."
+            question: "How were training, fine-tuning or evaluation data selected, and how is their representativeness and suitability for this use documented?"
+            scope: project
+            triggers: [model training, fine-tun, training data, dataset, evaluation]
+      - id: AIRMF.MP-3
+        title: MAP 3
+        text: "AI capabilities, targeted usage, goals, and expected benefits and costs compared with appropriate benchmarks are understood."
+        requirements:
+          - id: AIRMF.MP-3.1
+            text: "Potential benefits of intended AI system functionality and performance are examined and documented."
+            question: "What benefits of this AI system have been examined and documented, and against what baseline?"
+            scope: project
+            triggers: [business case, benefit]
+          - id: AIRMF.MP-3.2
+            text: "Potential costs, including non-monetary costs, which result from expected or realized AI errors or system functionality and trustworthiness - as connected to organizational risk tolerance - are examined and documented."
+            question: "What is the cost (financial, customer, regulatory, safety) of this AI system being wrong, and how does it compare with the risk tolerance?"
+            scope: project
+            triggers: [hallucinat, misclassif, false positive, false negative, error rate]
+          - id: AIRMF.MP-3.3
+            text: "Targeted application scope is specified and documented based on the system's capability, established context, and AI system categorization."
+            question: "How is the application scope of this AI system specified and enforced so it is not used beyond its capability?"
+            scope: project
+            triggers: [intended use, out of scope, use case]
+          - id: AIRMF.MP-3.4
+            text: "Processes for operator and practitioner proficiency with AI system performance and trustworthiness - and relevant technical standards and certifications - are defined, assessed and documented."
+            question: "How will operators of this AI system be made proficient in interpreting its performance and limitations?"
+            scope: org
+            triggers: [flag:uses_ai, operator, certification, proficiency]
+          - id: AIRMF.MP-3.5
+            text: "Processes for human oversight are defined, assessed, and documented in accordance with organizational policies from GOVERN function."
+            question: "Which actions or outputs of this AI system require human review or approval, and how is that oversight tested?"
+            scope: project
+            triggers: [system:ai_agent, human oversight, human-in-the-loop, human in the loop, approval, autonomous]
+            examples: ["Identify features and capabilities that require human oversight", "Evaluate oversight practices for validity and reliability and retest after major changes"]
+      - id: AIRMF.MP-4
+        title: MAP 4
+        text: "Risks and benefits are mapped for all components of the AI system including third-party software and data."
+        requirements:
+          - id: AIRMF.MP-4.1
+            text: "Approaches for mapping AI technology and legal risks of its components - including the use of third-party data or software - are in place, followed, and documented, as are risks of infringement of a third-party's intellectual property or other rights."
+            question: "Which third-party models, datasets and AI services are components of this system, and how have their technical, legal and licensing risks been mapped?"
+            scope: project
+            triggers: [flag:third_party, openai, anthropic, azure openai, bedrock, vertex, gemini, hugging, pre-trained, open-source model, licen]
+            examples: ["Review terms of service, licences, audit reports and testing results of third-party entities", "Inventory third-party material such as foundation models, open-source software and data"]
+          - id: AIRMF.MP-4.2
+            text: "Internal risk controls for components of the AI system including third-party AI technologies are identified and documented."
+            question: "Which internal controls (procurement, security review, privacy review, safelists) apply to the AI components, plugins and tools this system uses?"
+            scope: project
+            triggers: [flag:third_party, third-party model, plugin, mcp, tool, library]
+            examples: ["Review third-party models and data for bias, privacy and security vulnerabilities", "Apply procurement, security and data privacy controls to all acquired third-party technologies"]
+      - id: AIRMF.MP-5
+        title: MAP 5
+        text: "Impacts to individuals, groups, communities, organizations, and society are characterized."
+        requirements:
+          - id: AIRMF.MP-5.1
+            text: "Likelihood and magnitude of each identified impact (both potentially beneficial and harmful) based on expected use, past uses of AI systems in similar contexts, public incident reports, feedback from those external to the team that developed or deployed the AI system, or other data are identified and documented."
+            question: "What harmful impacts of this AI system on customers, staff or the public have been identified, and how likely and severe are they?"
+            scope: project
+            triggers: [flag:personal_data, customer, public, impact, harm]
+            examples: ["Establish assessment scales for AI system impact", "Use red teaming to connect system limitations to potential downstream impacts"]
+          - id: AIRMF.MP-5.2
+            text: "Practices and personnel for supporting regular engagement with relevant AI actors and integrating feedback about positive, negative, and unanticipated impacts are in place and documented."
+            question: "How will the team engage users and affected stakeholders to learn about unanticipated impacts once the system is live?"
+            scope: org
+            triggers: [flag:uses_ai, stakeholder, feedback, customer]
+            examples: ["Establish stakeholder engagement processes at the earliest stages of system formulation", "Identify an independent team to assess benefits, impacts and their likelihood"]
+  - id: AIRMF.MS
+    title: MEASURE
+    text: "Identified risks are assessed, analyzed, or tracked."
+    color: DE
+    categories:
+      - id: AIRMF.MS-1
+        title: MEASURE 1
+        text: "Appropriate methods and metrics are identified and applied."
+        requirements:
+          - id: AIRMF.MS-1.1
+            text: "Approaches and metrics for measurement of AI risks enumerated during the MAP function are selected for implementation starting with the most significant AI risks. The risks or trustworthiness characteristics that will not - or cannot - be measured are properly documented."
+            question: "Which metrics will measure the most significant AI risks of this system, and which risks cannot be measured?"
+            scope: org
+            triggers: [flag:uses_ai, metric, evaluation]
+            examples: ["Define acceptable limits for system performance and course-correction steps", "Document risks that will not be measured and the justification"]
+          - id: AIRMF.MS-1.2
+            text: "Appropriateness of AI metrics and effectiveness of existing controls is regularly assessed and updated including reports of errors and impacts on affected communities."
+            question: "How often are the metrics and controls for this AI system reassessed, including against reported errors and impacts?"
+            scope: org
+            triggers: [flag:uses_ai, metric, drift]
+            examples: ["Assess effectiveness of existing metrics and controls regularly through the lifecycle", "Collect software quality metrics such as bug rates, time to response and time to repair"]
+          - id: AIRMF.MS-1.3
+            text: "Internal experts who did not serve as front-line developers for the system and/or independent assessors are involved in regular assessments and updates. Domain experts, users, AI actors external to the team that developed or deployed the AI system, and affected communities are consulted in support of assessments as necessary per organizational risk tolerance."
+            question: "Who independent of the build team assesses this AI system, and how often?"
+            scope: org
+            triggers: [flag:uses_ai, independent, red team, assurance]
+      - id: AIRMF.MS-2
+        title: MEASURE 2
+        text: "AI systems are evaluated for trustworthy characteristics."
+        requirements:
+          - id: AIRMF.MS-2.1
+            text: "Test sets, metrics, and details about the tools used during test, evaluation, validation, and verification (TEVV) are documented."
+            question: "Which test sets, evaluation metrics and tools are used to test this AI system, and where are they documented?"
+            scope: project
+            triggers: [evaluation, test set, benchmark, eval]
+          - id: AIRMF.MS-2.2
+            text: "Evaluations involving human subjects meet applicable requirements (including human subject protection) and are representative of the relevant population."
+            question: "If people take part in evaluating this AI system (pilots, user research), how are they protected and are they representative of real users?"
+            scope: project
+            triggers: [human subject, user research, pilot, trial]
+          - id: AIRMF.MS-2.3
+            text: "AI system performance or assurance criteria are measured qualitatively or quantitatively and demonstrated for conditions similar to deployment setting(s). Measures are documented."
+            question: "What performance criteria has this AI system been shown to meet under conditions similar to production?"
+            scope: project
+            triggers: [accuracy, performance, latency, precision, recall]
+            examples: ["Measure the system before deployment in conditions similar to expected scenarios", "Document differences between the measurement setting and the deployment environment"]
+          - id: AIRMF.MS-2.4
+            text: "The functionality and behavior of the AI system and its components - as identified in the MAP function - are monitored when in production."
+            question: "How is the behaviour of this AI system (outputs, drift, tool use, errors) monitored in production?"
+            scope: project
+            triggers: [production, monitor, drift, observability]
+            examples: ["Compare production metrics with pre-deployment test results", "Monitor for anomalies and distribution shifts in inputs and outputs"]
+          - id: AIRMF.MS-2.5
+            text: "The AI system to be deployed is demonstrated to be valid and reliable. Limitations of the generalizability beyond the conditions under which the technology was developed are documented."
+            question: "How has this AI system been shown to be valid and reliable, and where are the limits of its generalisability documented?"
+            scope: project
+            triggers: [accuracy, reliab, validation, generaliz]
+            examples: ["Define and document the system's operational conditions and limits"]
+          - id: AIRMF.MS-2.6
+            text: "AI system is evaluated regularly for safety risks - as identified in the MAP function. The AI system to be deployed is demonstrated to be safe, its residual negative risk does not exceed the risk tolerance, and can fail safely, particularly if made to operate beyond its knowledge limits. Safety metrics implicate system reliability and robustness, real-time monitoring, and response times for AI system failures."
+            question: "How has this AI system been shown to fail safely, including when operating beyond its knowledge limits?"
+            scope: project
+            triggers: [safety, harm, fail safe, fail-safe, physical]
+            examples: ["Test the system under stress and conditions similar to past incidents or near-misses", "Document, practise and measure incident response plans for AI system incidents"]
+          - id: AIRMF.MS-2.7
+            text: "AI system security and resilience - as identified in the MAP function - are evaluated and documented."
+            question: "How have the security and resilience of this AI system (adversarial input, prompt injection, data and model tampering) been evaluated?"
+            scope: project
+            baseline: true
+            triggers: [system:ai_agent, system:ai_ml, adversarial, prompt injection, jailbreak, red team]
+            examples: ["Use red-team exercises to test the system under adversarial or stress conditions", "Document red-team results as part of continuous improvement"]
+          - id: AIRMF.MS-2.8
+            text: "Risks associated with transparency and accountability - as identified in the MAP function - are examined and documented."
+            question: "How are users told they are interacting with AI, and how are AI decisions and human oversight recorded for accountability?"
+            scope: project
+            triggers: [transparen, accountab, audit, disclos, automated decision]
+            examples: ["Measure and document the degree of human oversight of AI outputs", "Document go and no-go decisions made by accountable parties"]
+          - id: AIRMF.MS-2.9
+            text: "The AI model is explained, validated, and documented, and AI system output is interpreted within its context - as identified in the MAP function - and to inform responsible use and governance."
+            question: "How are this model's behaviour and outputs explained and documented (e.g. model card) for those who rely on them?"
+            scope: project
+            triggers: [explain, interpret, model card]
+          - id: AIRMF.MS-2.10
+            text: "Privacy risk of the AI system - as identified in the MAP function - is examined and documented."
+            question: "How have privacy risks of this AI system (personal data in prompts, training data, outputs and logs) been examined?"
+            scope: project
+            triggers: [flag:personal_data, privacy, pii]
+          - id: AIRMF.MS-2.11
+            text: "Fairness and bias - as identified in the MAP function - are evaluated and results are documented."
+            question: "How has this AI system been evaluated for harmful bias across the groups it affects?"
+            scope: project
+            triggers: [fairness, bias, discriminat, credit, hiring, eligibility, demographic]
+          - id: AIRMF.MS-2.12
+            text: "Environmental impact and sustainability of AI model training and management activities - as identified in the MAP function - are assessed and documented."
+            question: "Has the environmental impact of training and running this AI system been assessed?"
+            scope: project
+            triggers: [sustainab, carbon, energy, gpu, model training]
+          - id: AIRMF.MS-2.13
+            text: "Effectiveness of the employed TEVV metrics and processes in the MEASURE function are evaluated and documented."
+            question: "How is the effectiveness of the testing and evaluation approach for this AI system itself reviewed?"
+            scope: org
+            triggers: [flag:uses_ai, metric, evaluation]
+      - id: AIRMF.MS-3
+        title: MEASURE 3
+        text: "Mechanisms for tracking identified AI risks over time are in place."
+        requirements:
+          - id: AIRMF.MS-3.1
+            text: "Approaches, personnel, and documentation are in place to regularly identify and track existing, unanticipated, and emergent AI risks based on factors such as intended and actual performance in deployed contexts."
+            question: "Who tracks existing and emergent AI risks of this system after deployment, and how?"
+            scope: project
+            triggers: [production, emergent, drift, monitor]
+            examples: ["Compare user and community feedback with internal measures of system performance", "Measure error response times and track response quality"]
+          - id: AIRMF.MS-3.2
+            text: "Risk tracking approaches are considered for settings where AI risks are difficult to assess using currently available measurement techniques or where metrics are not yet available."
+            question: "How will AI risks of this system that cannot yet be measured be tracked?"
+            scope: org
+            triggers: [flag:uses_ai, emergent, bug bounty]
+            examples: ["Recourse mechanisms, bug bounties and participatory stakeholder engagement"]
+          - id: AIRMF.MS-3.3
+            text: "Feedback processes for end users and impacted communities to report problems and appeal system outcomes are established and integrated into AI system evaluation metrics."
+            question: "How can end users report problems with, or appeal, outcomes of this AI system, and how is that feedback measured?"
+            scope: project
+            triggers: [feedback, appeal, complaint, customer]
+            examples: ["Measure efficacy of end user and operator error reporting processes", "Categorise and analyse the type and rate of end user appeal requests"]
+      - id: AIRMF.MS-4
+        title: MEASURE 4
+        text: "Feedback about efficacy of measurement is gathered and assessed."
+        requirements:
+          - id: AIRMF.MS-4.1
+            text: "Measurement approaches for identifying AI risks are connected to deployment context(s) and informed through consultation with domain experts and other end users. Approaches are documented."
+            question: "How have domain experts and end users informed the way AI risks of this system are measured?"
+            scope: org
+            triggers: [flag:uses_ai, domain expert, end user]
+          - id: AIRMF.MS-4.2
+            text: "Measurement results regarding AI system trustworthiness in deployment context(s) and across AI lifecycle are informed by input from domain experts and other relevant AI actors to validate whether the system is performing consistently as intended. Results are documented."
+            question: "How do domain experts validate that this AI system is performing consistently as intended in production?"
+            scope: org
+            triggers: [flag:uses_ai, domain expert, validation]
+            examples: ["Measure the frequency of AI system override decisions and feed insights back into improvement"]
+          - id: AIRMF.MS-4.3
+            text: "Measurable performance improvements or declines based on consultations with relevant AI actors including affected communities, and field data about context-relevant risks and trustworthiness characteristics, are identified and documented."
+            question: "How are performance improvements or declines of this AI system identified from field data and documented?"
+            scope: org
+            triggers: [flag:uses_ai, field data, improvement]
+            examples: ["Develop baseline quantitative measures for trustworthy characteristics", "Perform and document sensitivity analysis after system or procedural updates"]
+  - id: AIRMF.MG
+    title: MANAGE
+    text: "Risks are prioritized and acted upon based on a projected impact."
+    color: RS
+    categories:
+      - id: AIRMF.MG-1
+        title: MANAGE 1
+        text: "AI risks based on assessments and other analytical output from the MAP and MEASURE functions are prioritized, responded to, and managed."
+        requirements:
+          - id: AIRMF.MG-1.1
+            text: "A determination is made as to whether the AI system achieves its intended purpose and stated objectives and whether its development or deployment should proceed."
+            question: "What evidence supports the decision that this AI system meets its intended purpose and should proceed to deployment?"
+            scope: project
+            triggers: [go-live, go live, launch, deploy, pilot]
+            examples: ["Weigh the system's negative risks against its benefits using TEVV outputs", "Regularly assess tradeoffs between trustworthiness characteristics"]
+          - id: AIRMF.MG-1.2
+            text: "Treatment of documented AI risks is prioritized based on impact, likelihood, or available resources or methods."
+            question: "How are the AI risks of this system prioritised for treatment?"
+            scope: org
+            triggers: [flag:uses_ai, prioriti, risk treatment]
+            examples: ["Assign risk management resources relative to established risk tolerance"]
+          - id: AIRMF.MG-1.3
+            text: "Responses to the AI risks deemed high priority as identified by the MAP function, are developed, planned, and documented. Risk response options can include mitigating, transferring, avoiding, or accepting."
+            question: "What is the documented response (mitigate, transfer, avoid or accept) for each high-priority AI risk of this system?"
+            scope: project
+            triggers: [risk treatment, high risk, mitigat, accept]
+            examples: ["Prioritise risks involving physical safety, legal liabilities, regulatory compliance and negative impacts on individuals", "Store risk management and system documentation in an organised, secure repository"]
+          - id: AIRMF.MG-1.4
+            text: "Negative residual risks (defined as the sum of all unmitigated risks) to both downstream acquirers of AI systems and end users are documented."
+            question: "What residual AI risks remain for end users and downstream consumers of this system, and how are they communicated?"
+            scope: project
+            triggers: [residual risk, downstream, end user, customer]
+      - id: AIRMF.MG-2
+        title: MANAGE 2
+        text: "Strategies to maximize AI benefits and minimize negative impacts are planned, prepared, implemented, and documented, and informed by input from relevant AI actors."
+        requirements:
+          - id: AIRMF.MG-2.1
+            text: "Resources required to manage AI risks are taken into account - along with viable non-AI alternative systems, approaches, or methods - to reduce the magnitude or likelihood of potential impacts."
+            question: "Have the resources needed to manage this system's AI risks, and viable non-AI alternatives, been considered?"
+            scope: org
+            triggers: [flag:uses_ai, non-ai, alternative, resourc]
+          - id: AIRMF.MG-2.2
+            text: "Mechanisms are in place and applied to sustain the value of deployed AI systems."
+            question: "How will the value and quality of this AI system be sustained after deployment (maintenance, retraining, model upgrades)?"
+            scope: org
+            triggers: [flag:uses_ai, maintenance, sustain, retrain]
+          - id: AIRMF.MG-2.3
+            text: "Procedures are followed to respond to and recover from a previously unknown risk when it is identified."
+            question: "What is the procedure for responding to and recovering from a newly discovered AI risk or failure mode in this system?"
+            scope: project
+            triggers: [incident, response, recover, unknown risk]
+            examples: ["Establish and regularly review treatment and response plans for incidents and negative impacts", "Verify contingency processes, including the ability to deactivate systems"]
+          - id: AIRMF.MG-2.4
+            text: "Mechanisms are in place and applied, responsibilities are assigned and understood to supersede, disengage, or deactivate AI systems that demonstrate performance or outcomes inconsistent with intended use."
+            question: "How can this AI system (or an individual agent, tool or model) be quickly disengaged or deactivated, who can do it, and what is the fallback?"
+            scope: project
+            triggers: [system:ai_agent, kill switch, disable, deactivat, autonomous, override, fallback]
+            examples: ["Review bypass procedures, including redundant or backup systems for continuity", "Preserve materials for forensic, regulatory and legal review after deactivation"]
+      - id: AIRMF.MG-3
+        title: MANAGE 3
+        text: "AI risks and benefits from third-party entities are managed."
+        requirements:
+          - id: AIRMF.MG-3.1
+            text: "AI risks and benefits from third-party resources are regularly monitored, and risk controls are applied and documented."
+            question: "How are the third-party AI services and models used by this system monitored, and which risk controls are applied to them?"
+            scope: project
+            triggers: [flag:third_party, openai, anthropic, azure openai, bedrock, vertex, gemini, vendor, saas]
+            examples: ["Apply organisational risk tolerance to third-party AI systems", "Establish processes for third parties to report vulnerabilities, risks or biases"]
+          - id: AIRMF.MG-3.2
+            text: "Pre-trained models which are used for development are monitored as part of AI system regular monitoring and maintenance."
+            question: "Which pre-trained or foundation models does this system rely on, and how are they monitored and updated?"
+            scope: project
+            triggers: [pre-trained, foundation model, hugging, fine-tun, open-source model, llama, mistral]
+            examples: ["Identify pre-trained models within the AI system inventory for risk tracking", "Decommission components and pre-trained models that exceed risk tolerances"]
+      - id: AIRMF.MG-4
+        title: MANAGE 4
+        text: "Risk treatments including response and recovery, and communication plans to the identified and measured AI risks are documented and monitored regularly."
+        requirements:
+          - id: AIRMF.MG-4.1
+            text: "Post-deployment AI system monitoring plans are implemented, including mechanisms for capturing and evaluating input from users and other relevant AI actors, appeal and override, decommissioning, incident response, recovery, and change management."
+            question: "What is the post-deployment monitoring plan for this AI system, including user feedback, appeal and override, incident response and change management?"
+            scope: project
+            triggers: [production, monitor, post-deployment, change management, rollback]
+            examples: ["Establish and implement red-teaming exercises at a prescribed cadence", "Establish procedures for tracking dataset modifications such as deletion or rectification requests"]
+          - id: AIRMF.MG-4.2
+            text: "Measurable activities for continual improvements are integrated into AI system updates and include regular engagement with interested parties, including relevant AI actors."
+            question: "How are measurable improvements and stakeholder feedback built into updates of this AI system?"
+            scope: org
+            triggers: [flag:uses_ai, continuous improvement, feedback]
+          - id: AIRMF.MG-4.3
+            text: "Incidents and errors are communicated to relevant AI actors including affected communities. Processes for tracking, responding to, and recovering from incidents and errors are followed and documented."
+            question: "How will AI incidents and errors in this system be tracked, communicated to affected users and recovered from?"
+            scope: project
+            triggers: [incident, error, notify, communicat]
+            examples: ["Maintain a database of reported errors, near-misses, incidents and negative impacts", "Maintain a database of system changes and version history"]
+
+
+

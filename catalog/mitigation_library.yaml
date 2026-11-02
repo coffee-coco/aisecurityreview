@@ -1,0 +1,259 @@
+# Mitigating-control library used for deterministic (offline) suggestions and as a
+# vocabulary the AI must choose from first. Edit freely - the app reloads on restart.
+#
+#   id:          stable identifier (referenced by risk_library.yaml)
+#   title:       short control name shown in the register
+#   description: what "implemented" looks like
+#   nist:        SP 800-53 Rev 5 controls it implements (links it to CSF questions)
+#   keywords:    extra words that make it relevant to free-text questions / risks
+
+- id: M-MFA
+  title: Enforce phishing-resistant MFA for all users
+  description: Require MFA (FIDO2/WebAuthn or authenticator push with number matching) via the corporate IdP for all interactive access, including admins and support staff.
+  nist: [IA-2, IA-2(1), IA-2(2), IA-5]
+  keywords: [mfa, authentication, login, sign-in, account takeover, credential stuffing, phishing]
+- id: M-SSO
+  title: Centralise authentication through corporate SSO
+  description: Integrate the application with the enterprise IdP using OIDC/SAML; disable local accounts; enforce conditional access policies.
+  nist: [IA-2, IA-8, AC-2]
+  keywords: [sso, saml, oidc, okta, entra, identity, local accounts]
+- id: M-RBAC
+  title: Role-based access control with least privilege
+  description: Define roles mapped to job functions, grant minimum permissions, deny by default and enforce authorisation server-side on every request.
+  nist: [AC-3, AC-6, AC-2]
+  keywords: [authorisation, authorization, rbac, roles, permissions, privilege, access control, idor, broken access]
+- id: M-PAM
+  title: Privileged access management with just-in-time elevation
+  description: Admin and production access via PAM with approval workflow, time-bound elevation, session recording and no standing privilege.
+  nist: [AC-6(1), AC-6(2), AC-6(5), AC-2(7), AU-14]
+  keywords: [privileged, admin, root, production access, break glass, support access, jit]
+- id: M-ACCESS-REVIEW
+  title: Quarterly user access reviews
+  description: Owners recertify user and service-account access quarterly; leavers removed within 24h via HR-driven provisioning.
+  nist: [AC-2, AC-2(3), PS-4, PS-5]
+  keywords: [access review, recertification, leavers, joiners, provisioning, scim]
+- id: M-SECRETS-VAULT
+  title: Store secrets in a managed vault with rotation
+  description: All credentials, API keys and certificates in a secrets manager (Key Vault / Secrets Manager / Vault), injected at runtime, rotated automatically, never in code or config.
+  nist: [IA-5, IA-5(7), SC-12, SC-28]
+  keywords: [secret, credential, api key, password, token, hard-coded, hardcoded, key vault, rotation, .env]
+- id: M-SECRET-SCANNING
+  title: Secret scanning in repositories and pipelines
+  description: Pre-commit hooks and CI secret scanning (e.g. GitHub Advanced Security, Gitleaks) block merges containing secrets; leaked secrets revoked immediately.
+  nist: [IA-5(7), SA-11, SI-4]
+  keywords: [secret scanning, leaked, git, repository, commit, hard-coded]
+- id: M-ENCRYPT-REST-CMK
+  title: Encrypt data at rest with customer-managed keys
+  description: Storage, databases, backups and queues encrypted with KMS/Key Vault customer-managed keys, annual rotation and restricted key-admin roles.
+  nist: [SC-28, SC-28(1), SC-12, SC-13]
+  keywords: [encryption at rest, kms, cmk, key management, storage, database, disk, backup encryption]
+- id: M-TLS
+  title: Enforce TLS 1.2+ for all data in transit
+  description: TLS 1.2+ with modern ciphers on every external and internal hop, HSTS on web endpoints, certificate validation never disabled.
+  nist: [SC-8, SC-8(1), SC-13, SC-23]
+  keywords: [tls, ssl, https, in transit, certificate, encryption in transit, mtls, hsts]
+- id: M-MTLS
+  title: Mutual TLS / service identity between services
+  description: Service-to-service calls authenticated with mTLS or workload identity (service mesh, SPIFFE, managed identities) rather than shared secrets.
+  nist: [SC-8, IA-3, IA-9, SC-23]
+  keywords: [service to service, mtls, service mesh, workload identity, managed identity, internal api]
+- id: M-WAF
+  title: Managed web application firewall and DDoS protection
+  description: Internet-facing endpoints fronted by a managed WAF (OWASP rule set, bot control, rate limiting) and cloud DDoS protection.
+  nist: [SC-7, SC-5, SI-4]
+  keywords: [waf, ddos, bot, rate limit, internet-facing, public endpoint, owasp, injection, xss]
+- id: M-RATE-LIMIT
+  title: Rate limiting, quotas and abuse detection
+  description: Per-user/per-IP rate limits and quotas on APIs and login endpoints with lockout/back-off and alerting on abuse patterns.
+  nist: [SC-5, AC-7, SI-4]
+  keywords: [rate limit, throttling, brute force, enumeration, quota, abuse, denial of wallet, cost]
+- id: M-NET-SEGMENTATION
+  title: Network segmentation and private endpoints
+  description: Workloads in private subnets, data stores reachable only via private endpoints, security groups/NSGs deny by default, no public IPs on back-end resources.
+  nist: [SC-7, SC-7(5), AC-4, CM-7]
+  keywords: [network, segmentation, private endpoint, vpc, vnet, subnet, security group, firewall, public ip, lateral movement]
+- id: M-EGRESS
+  title: Restrict outbound (egress) network access
+  description: Egress allow-list via firewall/proxy so workloads can only reach approved destinations; blocks data exfiltration and SSRF pivoting.
+  nist: [SC-7, SC-7(5), AC-4]
+  keywords: [egress, outbound, exfiltration, ssrf, proxy, allow-list]
+- id: M-INPUT-VALIDATION
+  title: Server-side input validation and output encoding
+  description: Schema validation on all inputs, parameterised queries/ORM, context-aware output encoding and safe templating to prevent injection and XSS.
+  nist: [SI-10, SI-15, SA-8]
+  keywords: [input validation, injection, sql injection, xss, command injection, sanitise, sanitize, deserialization, path traversal]
+- id: M-SAST-DAST
+  title: SAST, SCA and DAST in the delivery pipeline
+  description: Static analysis, dependency scanning and dynamic scans run on every build; high/critical findings block release.
+  nist: [SA-11, SA-11(1), RA-5, SI-2]
+  keywords: [sast, dast, sca, code scanning, dependency, vulnerability scanning, pipeline, secure development]
+- id: M-PENTEST
+  title: Independent penetration test before go-live
+  description: CREST-accredited penetration test of the application and infrastructure before production release; high findings remediated and re-tested.
+  nist: [CA-8, RA-5]
+  keywords: [penetration test, pentest, security testing, go-live, red team]
+- id: M-THREAT-MODEL
+  title: Threat model the design (STRIDE / OWASP)
+  description: Documented threat model covering trust boundaries, data flows and abuse cases, reviewed when the design changes.
+  nist: [RA-3, SA-8, SA-11(2), PL-8]
+  keywords: [threat model, stride, abuse case, trust boundary, design review, data flow]
+- id: M-DEP-MGMT
+  title: Dependency management and patch SLAs
+  description: Pinned dependencies, SBOM generated per build, automated update PRs and patch SLAs (critical 7 days, high 30 days).
+  nist: [SI-2, RA-5, SR-3, CM-8]
+  keywords: [dependency, library, package, outdated, patch, cve, sbom, supply chain, vulnerable component]
+- id: M-IMAGE-HARDENING
+  title: Hardened, signed container images
+  description: Minimal base images, non-root user, image scanning in registry, signed images and admission control allowing only trusted registries.
+  nist: [CM-6, CM-7, SI-7, SR-4]
+  keywords: [container, docker, image, kubernetes, pod security, non-root, registry, admission]
+- id: M-IAC-SCANNING
+  title: IaC policy-as-code scanning (Checkov) in CI
+  description: Checkov/OPA policies run on every Terraform/CloudFormation/Kubernetes change; failed policies block merge unless an approved exception exists.
+  nist: [CM-6, CM-3, SA-11, CM-2]
+  keywords: [terraform, iac, checkov, cloudformation, misconfiguration, policy as code, kubernetes manifests]
+- id: M-CSPM
+  title: Cloud security posture management
+  description: CSPM (Defender for Cloud / Security Hub / SCC) enabled on the subscription/account with alerts on misconfiguration and drift.
+  nist: [CA-7, CM-6, RA-5, SI-4]
+  keywords: [cspm, posture, misconfiguration, cloud, drift, security hub, defender]
+- id: M-BASELINE
+  title: Secure configuration baseline (CIS)
+  description: Resources deployed from hardened, CIS-aligned baselines/landing zone guardrails (SCPs/Azure Policy) with drift detection.
+  nist: [CM-2, CM-6, CM-7]
+  keywords: [baseline, hardening, cis, landing zone, guardrail, scp, azure policy, configuration]
+- id: M-LOGGING-SIEM
+  title: Centralised security logging to the SIEM
+  description: Application, access, admin and cloud control-plane logs forwarded to the SIEM with tamper protection and 12-month retention.
+  nist: [AU-2, AU-3, AU-6, AU-9, AU-11, AU-12]
+  keywords: [logging, audit log, siem, sentinel, splunk, cloudtrail, monitoring, retention, audit trail]
+- id: M-DETECTION
+  title: Detection use cases and alerting
+  description: SOC detection rules for the system's key threats (auth anomalies, privilege changes, data exfiltration) with on-call alerting.
+  nist: [SI-4, AU-6, IR-4, CA-7]
+  keywords: [detection, alert, soc, anomaly, monitoring, threat detection, guardduty, defender]
+- id: M-IR-PLAYBOOK
+  title: Incident response playbook for the system
+  description: Documented runbook covering detection, containment, notification (incl. privacy breach obligations) and recovery; tested annually.
+  nist: [IR-4, IR-8, IR-6, IR-3]
+  keywords: [incident response, playbook, breach, notification, runbook, containment]
+- id: M-BACKUP
+  title: Immutable backups with tested restores
+  description: Automated backups to a separate account/vault with immutability (object lock / vault lock), cross-region copy and quarterly restore tests.
+  nist: [CP-9, CP-10, CP-6]
+  keywords: [backup, restore, ransomware, recovery, snapshot, immutable, disaster recovery]
+- id: M-HA-DR
+  title: High availability and documented DR plan
+  description: Multi-AZ / zone-redundant deployment, defined RTO/RPO, DR runbook and annual failover test.
+  nist: [CP-2, CP-7, CP-10, SC-36]
+  keywords: [availability, resilience, disaster recovery, rto, rpo, multi-az, failover, outage]
+- id: M-DATA-MINIMISATION
+  title: Data minimisation and retention schedule
+  description: Collect only required fields, mask/tokenise sensitive data, enforce retention and secure deletion per the records schedule.
+  nist: [SI-12, PM-5(1), SC-28, MP-6]
+  keywords: [data minimisation, retention, deletion, masking, tokenisation, privacy, pii, purge]
+- id: M-DLP
+  title: Data loss prevention controls
+  description: DLP policies on email, endpoints, SaaS and cloud storage detect and block sensitive data leaving approved boundaries.
+  nist: [AC-4, SC-7(10), SI-4]
+  keywords: [dlp, data loss, exfiltration, leakage, sharing, download]
+- id: M-PIA
+  title: Privacy impact assessment
+  description: PIA completed with the privacy officer; collection notice, lawful purpose and cross-border transfers confirmed.
+  nist: [PT-2, PT-3, RA-8]
+  keywords: [privacy, pia, consent, personal information, purpose, cross-border, privacy act, gdpr]
+- id: M-VENDOR-ASSURANCE
+  title: Third-party security assessment and contract clauses
+  description: Supplier security assessment (SOC 2 Type II / ISO 27001), contract with breach notification, right to audit, data location and exit clauses.
+  nist: [SA-9, SR-6, SA-4, SR-5]
+  keywords: [vendor, supplier, third party, saas, contract, soc 2, iso 27001, outsourcing, assurance]
+- id: M-SAAS-CONFIG
+  title: SaaS security configuration review (SSPM)
+  description: SaaS tenant hardened against vendor security baseline - SSO enforced, admin roles limited, audit logging on, external sharing restricted.
+  nist: [CM-6, AC-2, AU-2, SA-9]
+  keywords: [saas, tenant, configuration, sharing, admin, sspm]
+- id: M-API-AUTH
+  title: Strong API authentication and authorisation
+  description: OAuth2/OIDC access tokens with audience/scope validation, short lifetimes, per-object authorisation checks and no API keys in URLs.
+  nist: [IA-2, AC-3, IA-5, SC-23]
+  keywords: [api, oauth, jwt, token, api key, bearer, scope, bola, idor, authorisation]
+- id: M-SESSION
+  title: Secure session management
+  description: Secure/HttpOnly/SameSite cookies, idle and absolute timeouts, session revocation on logout/password change and CSRF protection.
+  nist: [SC-23, AC-12, SC-10]
+  keywords: [session, cookie, csrf, timeout, logout, token revocation]
+- id: M-CHANGE-MGMT
+  title: Change management with peer review
+  description: Branch protection, mandatory code review, segregated deploy approvals and change records for production.
+  nist: [CM-3, CM-5, SA-10, CM-4]
+  keywords: [change management, code review, branch protection, approval, deployment, release]
+- id: M-CICD-HARDENING
+  title: Hardened CI/CD pipeline with OIDC federation
+  description: No long-lived cloud keys in CI (OIDC federation), least-privilege deploy roles, pinned actions, protected environments.
+  nist: [AC-6, IA-5, SA-10, CM-5, SR-4]
+  keywords: [ci/cd, pipeline, github actions, oidc, deploy role, build, supply chain, runner]
+- id: M-ASSET-INVENTORY
+  title: Register system in the asset inventory / CMDB
+  description: System, owner, data classification and dependencies recorded in the CMDB and kept current.
+  nist: [CM-8, PM-5, CM-12]
+  keywords: [asset, inventory, cmdb, owner, register]
+- id: M-SECURITY-TRAINING
+  title: Secure coding and role-based security training
+  description: Developers complete secure coding training; admins and support staff complete role-based security awareness.
+  nist: [AT-2, AT-3]
+  keywords: [training, awareness, secure coding, developers]
+- id: M-AI-GUARDRAILS
+  title: LLM guardrails for prompt injection and output filtering
+  description: Input/output content filtering, prompt-injection detection, system-prompt isolation, grounded responses with citations and refusal policies.
+  nist: [SI-10, SI-15, SI-4, SA-8]
+  keywords: [prompt injection, jailbreak, guardrail, content filter, llm, ai, model output, hallucination]
+- id: M-AI-TOOL-SANDBOX
+  title: Least-privilege, sandboxed AI agent tools
+  description: Agent tools run with scoped credentials, allow-listed actions, sandboxed execution, human approval for high-impact actions and full audit logging.
+  nist: [AC-6, SC-39, AU-2, CM-7]
+  keywords: [agent, tool, function calling, autonomous, action, sandbox, code execution, mcp, plugin]
+- id: M-AI-DATA-GOV
+  title: AI data governance and retrieval access control
+  description: Retrieval respects source permissions (security trimming), no customer data used for model training, prompt/response logging with retention limits.
+  nist: [AC-3, AC-4, SI-12, PT-2]
+  keywords: [rag, retrieval, vector, embedding, training data, ai data, prompt logging, data leakage]
+- id: M-AI-EVAL
+  title: AI model evaluation and human oversight
+  description: Pre-release evaluation for accuracy, bias and safety; human review of consequential outputs; monitoring for drift and misuse.
+  nist: [SA-11, CA-7, RA-3, PM-9]
+  keywords: [evaluation, bias, accuracy, human in the loop, oversight, model risk, drift]
+- id: M-FILE-UPLOAD
+  title: Secure file upload handling
+  description: Type/size validation, malware scanning, storage outside web root with randomised names, and content served with safe headers.
+  nist: [SI-3, SI-10, SC-18]
+  keywords: [file upload, malware, attachment, document upload, antivirus]
+- id: M-SECURITY-HEADERS
+  title: Browser security headers (CSP, HSTS)
+  description: Content-Security-Policy, HSTS, X-Content-Type-Options, frame-ancestors and Referrer-Policy configured on all web responses.
+  nist: [SC-8, SI-10, SC-18]
+  keywords: [csp, security headers, clickjacking, xss, browser, hsts]
+- id: M-ERROR-HANDLING
+  title: Safe error handling and debug disabled
+  description: Generic error messages to users, detailed errors only in protected logs, debug/verbose modes disabled in production.
+  nist: [SI-11, CM-7]
+  keywords: [error, stack trace, debug, verbose, exception, information disclosure]
+- id: M-CRYPTO-STANDARDS
+  title: Approved cryptography standards
+  description: Only approved algorithms (AES-256-GCM, SHA-256+, bcrypt/argon2 for passwords) via vetted libraries; secure random generation for tokens.
+  nist: [SC-13, SC-12, IA-5(1)]
+  keywords: [cryptography, md5, sha1, weak hash, random, password hashing, cipher, ecb]
+- id: M-EDR
+  title: Endpoint/workload protection (EDR/CWPP)
+  description: EDR or cloud workload protection agents on servers, containers and VMs with SOC monitoring.
+  nist: [SI-3, SI-4, SI-4(2)]
+  keywords: [edr, malware, endpoint, workload protection, antivirus, runtime]
+- id: M-OT-SEGMENTATION
+  title: OT/IoT network isolation and device hardening
+  description: Devices on isolated networks with brokered access, signed firmware, default credentials removed and remote access via jump host.
+  nist: [SC-7, CM-7, SI-7, AC-17]
+  keywords: [iot, ot, device, firmware, scada, plc, sensor]
+- id: M-MOBILE-SECURITY
+  title: Mobile app security controls (OWASP MASVS)
+  description: Certificate pinning, secure local storage (Keychain/Keystore), jailbreak/root detection, obfuscation and MASVS testing.
+  nist: [SC-8, SC-28, SA-11]
+  keywords: [mobile, ios, android, app store, device storage, pinning]

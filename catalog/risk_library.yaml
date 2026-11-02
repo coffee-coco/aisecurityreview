@@ -1,0 +1,280 @@
+# Design-risk library for deterministic risk discovery.
+#
+# A risk is suggested when its `when` conditions match the review profile:
+#   all:  every token must be present        any: at least one token must be present
+#   none: no token may be present
+# Tokens: exposure:public|partner|internal, class:<c>, class>=<c> (public<internal<confidential<restricted),
+#   data:<type>, system:<type>, tech:<platform>, service:<svc>, flag:third_party|uses_ai|personal_data|
+#   internet_facing, new, change, code:<finding category>, kw:<word in description/design/code summary>
+# impact: fixed value, or `by_class` = scales with the highest classification handled/connected (C1..C4).
+
+- id: R-EXT-EXPLOIT
+  title: Exploitation of internet-facing application
+  risk: There is a risk that an external attacker exploits an application vulnerability (OWASP Top 10) in the internet-facing service, resulting in unauthorised access to data or systems.
+  when: {any: [exposure:public, exposure:partner]}
+  likelihood: likely
+  impact: by_class
+  csf: [PR.IR-01, ID.RA-01, DE.CM-01]
+  mitigations: [M-WAF, M-SAST-DAST, M-PENTEST, M-INPUT-VALIDATION]
+  recommendation: Front the service with a managed WAF, run SAST/DAST in the pipeline and complete an independent penetration test before go-live.
+- id: R-ACCOUNT-TAKEOVER
+  title: Account takeover through credential attacks
+  risk: There is a risk that attackers take over user accounts through credential stuffing, phishing or password spraying, resulting in fraud and unauthorised access to user data.
+  when: {any: [exposure:public, exposure:partner, system:web_app, system:mobile_app]}
+  likelihood: likely
+  impact: by_class
+  csf: [PR.AA-03, PR.AA-01, DE.CM-03]
+  mitigations: [M-MFA, M-RATE-LIMIT, M-DETECTION]
+  recommendation: Enforce MFA, apply rate limiting and lockout on authentication endpoints, and alert on anomalous sign-in patterns.
+- id: R-BROKEN-ACCESS
+  title: Broken access control exposes other users' data
+  risk: There is a risk that missing object-level or function-level authorisation checks allow a user to access or modify data belonging to other users (IDOR/BOLA), resulting in a data breach.
+  when: {any: [system:web_app, system:api, system:mobile_app]}
+  likelihood: possible
+  impact: by_class
+  csf: [PR.AA-05, PR.PS-06]
+  mitigations: [M-RBAC, M-API-AUTH, M-PENTEST]
+  recommendation: Enforce authorisation server-side on every request and object, deny by default, and include access-control abuse cases in testing.
+- id: R-API-ABUSE
+  title: API abuse, scraping or denial of wallet
+  risk: There is a risk that public APIs are abused through automated scraping, enumeration or high-volume requests, resulting in data harvesting, service degradation or unexpected cloud cost.
+  when: {all: [system:api], any: [exposure:public, exposure:partner]}
+  likelihood: likely
+  impact: moderate
+  csf: [PR.IR-04, DE.CM-01, PR.AA-05]
+  mitigations: [M-RATE-LIMIT, M-WAF, M-API-AUTH]
+  recommendation: Apply per-client authentication, rate limits and quotas on all APIs and monitor for abuse patterns.
+- id: R-DATA-BREACH-PI
+  title: Personal information breach
+  risk: There is a risk that personal information is accessed or disclosed without authorisation, resulting in harm to individuals, regulatory notification obligations and reputational damage.
+  when: {any: [flag:personal_data]}
+  likelihood: possible
+  impact: by_class
+  csf: [PR.DS-01, PR.DS-02, GV.OC-03, RS.CO-02]
+  mitigations: [M-ENCRYPT-REST-CMK, M-TLS, M-DATA-MINIMISATION, M-PIA, M-IR-PLAYBOOK]
+  recommendation: Complete a privacy impact assessment, minimise and encrypt personal data, and ensure the incident playbook covers breach notification.
+- id: R-PCI-SCOPE
+  title: Cardholder data brings systems into PCI DSS scope
+  risk: There is a risk that cardholder data is stored, processed or transmitted by the system, bringing it into PCI DSS scope and exposing the organisation to fines and card-brand sanctions if compromised.
+  when: {any: [data:payment_card, kw:pci, kw:cardholder]}
+  likelihood: possible
+  impact: severe
+  csf: [GV.OC-03, PR.DS-01, PR.DS-02]
+  mitigations: [M-DATA-MINIMISATION, M-ENCRYPT-REST-CMK, M-NET-SEGMENTATION, M-VENDOR-ASSURANCE]
+  recommendation: Avoid handling PAN by using a PCI-compliant tokenisation/hosted payment provider; if unavoidable, segment and validate the cardholder data environment.
+- id: R-HEALTH-DATA
+  title: Health information mishandling
+  risk: There is a risk that health information is disclosed or used outside its permitted purpose, resulting in serious harm to individuals and regulatory action.
+  when: {any: [data:health]}
+  likelihood: possible
+  impact: severe
+  csf: [GV.OC-03, PR.DS-01, PR.AA-05]
+  mitigations: [M-PIA, M-ENCRYPT-REST-CMK, M-RBAC, M-LOGGING-SIEM]
+  recommendation: Restrict access to health data to named roles, log all access, encrypt with customer-managed keys and confirm permitted use with the privacy officer.
+- id: R-CREDENTIAL-EXPOSURE
+  title: Secrets or credentials exposed in code or configuration
+  risk: There is a risk that credentials, API keys or tokens are stored in source code, configuration or pipelines, resulting in unauthorised access to connected systems.
+  when: {any: [data:credentials, code:secrets, system:integration, system:api, tech:GitHub Actions, tech:Terraform]}
+  likelihood: possible
+  impact: major
+  csf: [PR.AA-01, PR.DS-01, PR.PS-06]
+  mitigations: [M-SECRETS-VAULT, M-SECRET-SCANNING, M-CICD-HARDENING]
+  recommendation: Move all secrets to a managed vault with rotation, enable secret scanning on repositories and use OIDC federation instead of long-lived CI credentials.
+- id: R-CLOUD-MISCONFIG
+  title: Cloud resource misconfiguration
+  risk: There is a risk that cloud resources are deployed with insecure settings (public storage, open security groups, missing encryption or logging), resulting in data exposure.
+  when: {any: [tech:AWS, tech:Azure, tech:GCP, tech:Terraform]}
+  likelihood: likely
+  impact: by_class
+  csf: [PR.PS-01, PR.IR-01, PR.DS-01]
+  mitigations: [M-IAC-SCANNING, M-CSPM, M-BASELINE]
+  recommendation: Deploy only via IaC with Checkov policy gates, inherit landing-zone guardrails and enable CSPM alerting on the account/subscription.
+- id: R-K8S-ESCAPE
+  title: Container escape or cluster compromise
+  risk: There is a risk that a compromised or misconfigured container (privileged, root, host mounts) is used to escape to the node or move laterally across the cluster.
+  when: {any: [tech:Kubernetes, tech:Docker, service:eks, service:aks, service:gke]}
+  likelihood: possible
+  impact: major
+  csf: [PR.PS-01, PR.IR-01, DE.CM-09]
+  mitigations: [M-IMAGE-HARDENING, M-NET-SEGMENTATION, M-EDR, M-IAC-SCANNING]
+  recommendation: Enforce restricted pod security standards, run non-root signed images, apply network policies and deploy runtime workload protection.
+- id: R-SUPPLIER
+  title: Supplier security failure or breach
+  risk: There is a risk that a supplier's security failure or breach exposes the organisation's data or disrupts the service, with limited visibility or contractual recourse.
+  when: {any: [flag:third_party, system:saas]}
+  likelihood: possible
+  impact: by_class
+  csf: [GV.SC-05, GV.SC-06, GV.SC-07, DE.CM-06]
+  mitigations: [M-VENDOR-ASSURANCE, M-SAAS-CONFIG, M-DATA-MINIMISATION]
+  recommendation: Complete a supplier security assessment, obtain SOC 2 Type II / ISO 27001 evidence and include breach notification, audit and exit clauses in the contract.
+- id: R-SAAS-SHARING
+  title: Uncontrolled data sharing from SaaS tenant
+  risk: There is a risk that weak SaaS tenant configuration (local accounts, external sharing, broad admin roles) leads to data leaking outside the organisation.
+  when: {any: [system:saas]}
+  likelihood: possible
+  impact: by_class
+  csf: [PR.AA-01, PR.PS-01, PR.DS-01]
+  mitigations: [M-SAAS-CONFIG, M-SSO, M-DLP]
+  recommendation: Enforce SSO, restrict external sharing and admin roles, enable tenant audit logging and review configuration against the vendor baseline.
+- id: R-OFFSHORE-ACCESS
+  title: Excessive supplier or support access
+  risk: There is a risk that supplier or support staff hold standing privileged access to production data, resulting in insider misuse or compromise via the supplier.
+  when: {all: [flag:third_party], any: [kw:support, kw:offshore, kw:managed service, kw:outsourc, kw:administer]}
+  likelihood: possible
+  impact: major
+  csf: [PR.AA-05, GV.SC-05, DE.CM-03]
+  mitigations: [M-PAM, M-ACCESS-REVIEW, M-LOGGING-SIEM]
+  recommendation: Provide supplier access only via PAM with approval, time-bound elevation and session recording; review access quarterly.
+- id: R-PROMPT-INJECTION
+  title: Prompt injection manipulates AI behaviour
+  risk: There is a risk that malicious instructions in user input or retrieved content (direct or indirect prompt injection) override the AI's instructions, resulting in data disclosure or unauthorised actions.
+  when: {any: [system:ai_agent, flag:uses_ai]}
+  likelihood: likely
+  impact: by_class
+  csf: [PR.DS-10, PR.PS-06, ID.RA-01]
+  mitigations: [M-AI-GUARDRAILS, M-AI-TOOL-SANDBOX, M-THREAT-MODEL]
+  recommendation: Treat all model input and retrieved content as untrusted - isolate system prompts, apply prompt-injection filtering and require approval for high-impact actions.
+- id: R-AGENT-EXCESSIVE-AGENCY
+  title: AI agent takes harmful actions (excessive agency)
+  risk: There is a risk that an AI agent with broad tool permissions performs unintended or attacker-induced actions (data changes, payments, emails, code execution), resulting in business or security impact.
+  when: {any: [system:ai_agent, kw:tool calling, kw:function calling, kw:agent, kw:mcp, code:ai]}
+  likelihood: possible
+  impact: major
+  csf: [PR.AA-05, PR.PS-06, DE.CM-09]
+  mitigations: [M-AI-TOOL-SANDBOX, M-RBAC, M-LOGGING-SIEM]
+  recommendation: Give agent tools least-privilege scoped credentials, allow-list actions, sandbox code execution and require human approval for consequential actions.
+- id: R-AI-DATA-LEAKAGE
+  title: Sensitive data leaks through AI prompts or retrieval
+  risk: There is a risk that confidential data is exposed through AI responses (retrieval without permission trimming) or sent to model providers and retained or used for training.
+  when: {all: [flag:uses_ai], any: [class>=confidential, flag:personal_data]}
+  likelihood: possible
+  impact: by_class
+  csf: [PR.DS-01, PR.DS-10, GV.SC-05]
+  mitigations: [M-AI-DATA-GOV, M-DLP, M-VENDOR-ASSURANCE]
+  recommendation: Enforce source-permission trimming in retrieval, confirm the model provider does not retain or train on data, and limit prompt logging retention.
+- id: R-AI-OUTPUT
+  title: Inaccurate or harmful AI output relied upon
+  risk: There is a risk that hallucinated, biased or unsafe AI output is relied upon for decisions or shown to customers, resulting in harm, complaints or regulatory exposure.
+  when: {any: [system:ai_agent, system:ai_ml, flag:uses_ai]}
+  likelihood: possible
+  impact: moderate
+  csf: [GV.RM-01, ID.RA-04, GV.OV-01]
+  mitigations: [M-AI-EVAL, M-AI-GUARDRAILS]
+  recommendation: Evaluate model quality and safety before release, ground responses with citations and keep a human in the loop for consequential outputs.
+- id: R-LATERAL-MOVEMENT
+  title: Compromise spreads to higher-classification systems
+  risk: There is a risk that a compromise of this system is used to pivot into the more sensitive systems it connects to, because trust and network paths are not sufficiently restricted.
+  when: {any: [class>=confidential], all: [kw:integrat]}
+  likelihood: possible
+  impact: major
+  csf: [PR.IR-01, PR.AA-05, DE.CM-01]
+  mitigations: [M-NET-SEGMENTATION, M-MTLS, M-EGRESS]
+  recommendation: Segment the system from higher-classification environments, authenticate service-to-service calls and restrict egress to approved destinations.
+- id: R-INTEGRATION-TAMPER
+  title: Interception or tampering of integration data
+  risk: There is a risk that data exchanged with other systems (files, APIs, queues) is intercepted or altered in transit or at staging locations, resulting in disclosure or corrupted records.
+  when: {any: [system:integration, kw:sftp, kw:file transfer, kw:webhook, kw:sync]}
+  likelihood: possible
+  impact: by_class
+  csf: [PR.DS-02, PR.DS-01, PR.DS-10]
+  mitigations: [M-TLS, M-MTLS, M-ENCRYPT-REST-CMK]
+  recommendation: Encrypt data in transit and at staging, authenticate both endpoints and verify integrity (signing/checksums) of exchanged files and messages.
+- id: R-NO-DETECTION
+  title: Attacks go undetected
+  risk: There is a risk that malicious activity against the system is not detected or investigated in time because security-relevant logs are not collected or monitored.
+  when: {any: [exposure:public, exposure:partner, class>=confidential]}
+  likelihood: possible
+  impact: major
+  csf: [DE.CM-01, DE.CM-03, DE.AE-03]
+  mitigations: [M-LOGGING-SIEM, M-DETECTION, M-IR-PLAYBOOK]
+  recommendation: Forward application, access and cloud logs to the SIEM and agree detection use cases with the SOC before go-live.
+- id: R-RANSOMWARE
+  title: Data loss or extended outage from ransomware or destructive attack
+  risk: There is a risk that a destructive attack or ransomware encrypts or deletes data and backups, resulting in prolonged outage and data loss.
+  when: {any: [class>=confidential, system:data_platform, kw:production]}
+  likelihood: possible
+  impact: major
+  csf: [PR.DS-11, RC.RP-01, RS.MA-01]
+  mitigations: [M-BACKUP, M-HA-DR, M-IR-PLAYBOOK]
+  recommendation: Keep immutable, separately-secured backups, define RTO/RPO and test restores and failover regularly.
+- id: R-SUPPLY-CHAIN-CODE
+  title: Compromised dependency or build pipeline
+  risk: There is a risk that a malicious or vulnerable open-source dependency or compromised CI/CD pipeline introduces malicious code into production.
+  when: {any: [tech:GitHub Actions, tech:GitLab CI, tech:Azure Pipelines, tech:GitHub, code:dependencies, code:supply_chain, system:api, system:web_app]}
+  likelihood: possible
+  impact: major
+  csf: [GV.SC-09, PR.PS-06, ID.RA-09]
+  mitigations: [M-DEP-MGMT, M-CICD-HARDENING, M-SAST-DAST]
+  recommendation: Pin and scan dependencies, generate an SBOM, harden CI with OIDC and least-privilege deploy roles, and require reviewed changes.
+- id: R-DATA-PLATFORM-OVERSHARE
+  title: Over-broad access to analytical data
+  risk: There is a risk that analysts or downstream consumers gain access to more sensitive data than needed in the data platform, resulting in misuse or breach.
+  when: {all: [system:data_platform], any: [class>=confidential, flag:personal_data]}
+  likelihood: likely
+  impact: by_class
+  csf: [PR.AA-05, PR.DS-01, GV.OC-03]
+  mitigations: [M-RBAC, M-DATA-MINIMISATION, M-LOGGING-SIEM]
+  recommendation: Apply column/row-level access controls, mask or tokenise sensitive fields and log data access for audit.
+- id: R-CHANGE-REGRESSION
+  title: Change weakens existing security controls
+  risk: There is a risk that the change disables or weakens existing security controls (configuration drift, removed logging, opened network paths) without being detected.
+  when: {any: [change]}
+  likelihood: possible
+  impact: moderate
+  csf: [PR.PS-01, ID.RA-07, PR.PS-06]
+  mitigations: [M-CHANGE-MGMT, M-IAC-SCANNING, M-BASELINE]
+  recommendation: Peer-review the change, compare security configuration before and after, and gate deployment on IaC policy checks.
+- id: R-AVAILABILITY
+  title: Service outage impacts customers or operations
+  risk: There is a risk that a component failure or capacity issue causes an outage of a business-critical or customer-facing service beyond tolerance.
+  when: {any: [exposure:public, kw:critical, kw:payment, kw:24/7, kw:production]}
+  likelihood: possible
+  impact: moderate
+  csf: [PR.IR-03, RC.RP-01, ID.AM-05]
+  mitigations: [M-HA-DR, M-BACKUP, M-DETECTION]
+  recommendation: Deploy across availability zones, define RTO/RPO with the business owner and test failover before go-live.
+- id: R-MOBILE-DEVICE
+  title: Sensitive data exposed on mobile devices
+  risk: There is a risk that tokens or sensitive data stored on mobile devices are extracted from lost, rooted or compromised devices.
+  when: {any: [system:mobile_app]}
+  likelihood: possible
+  impact: moderate
+  csf: [PR.DS-01, PR.DS-02, PR.PS-05]
+  mitigations: [M-MOBILE-SECURITY, M-SESSION]
+  recommendation: Store tokens in Keychain/Keystore, avoid caching sensitive data, pin certificates and test against OWASP MASVS.
+- id: R-FILE-UPLOAD
+  title: Malicious file upload
+  risk: There is a risk that uploaded files contain malware or exploit parsers, resulting in compromise of the platform or of users who download them.
+  when: {any: [kw:upload, kw:attachment, kw:document upload]}
+  likelihood: possible
+  impact: moderate
+  csf: [PR.PS-05, DE.CM-09, PR.DS-10]
+  mitigations: [M-FILE-UPLOAD, M-EDR]
+  recommendation: Validate type and size, scan uploads for malware, store them outside the web root and serve with safe content headers.
+- id: R-IOT-DEVICE
+  title: Device compromise in IoT/OT environment
+  risk: There is a risk that insecure devices (default credentials, unsigned firmware, flat networks) are compromised and used to disrupt operations or pivot into corporate networks.
+  when: {any: [system:iot_ot]}
+  likelihood: possible
+  impact: severe
+  csf: [ID.AM-01, PR.IR-01, PR.PS-02]
+  mitigations: [M-OT-SEGMENTATION, M-ASSET-INVENTORY, M-DETECTION]
+  recommendation: Isolate devices on segmented networks, remove default credentials, require signed firmware and broker remote access.
+- id: R-IDENTITY-CHANGE
+  title: Identity change creates authentication bypass or lockout
+  risk: There is a risk that changes to identity providers, SSO or MFA configuration introduce authentication bypass, privilege escalation or widespread lockout.
+  when: {any: [system:identity]}
+  likelihood: possible
+  impact: major
+  csf: [PR.AA-01, PR.AA-03, PR.AA-05]
+  mitigations: [M-SSO, M-MFA, M-CHANGE-MGMT, M-PAM]
+  recommendation: Test identity changes in a non-production tenant, keep break-glass accounts, and peer-review conditional-access and federation settings.
+- id: R-UNREGISTERED-ASSET
+  title: Shadow asset without ownership or oversight
+  risk: There is a risk that the new system is not registered with an accountable owner and classification, so it misses patching, monitoring and future reviews.
+  when: {any: [new]}
+  likelihood: possible
+  impact: minor
+  csf: [ID.AM-01, ID.AM-02, GV.RR-02]
+  mitigations: [M-ASSET-INVENTORY]
+  recommendation: Register the system, owner, data classification and dependencies in the CMDB before go-live.

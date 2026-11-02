@@ -1,0 +1,421 @@
+# Security review questions for every active NIST CSF 2.0 subcategory.
+#
+# This file is hand-maintained. The NIST text, implementation examples and
+# SP 800-53 Rev 5 mappings are pulled automatically by scripts/build_catalog.py;
+# this file adds the *review* layer on top:
+#
+#   question  - what the security architect asks the project team
+#   scope     - "project" (relevant to a single initiative / change) or
+#               "org" (organisation-wide; usually satisfied by existing programmes)
+#   baseline  - true = always included by the offline (heuristic) scoper
+#   triggers  - keywords (in the description / tech stack) or intake flags
+#               (flag:internet_facing, flag:personal_data, flag:third_party,
+#               flag:uses_ai, flag:new) that cause the offline scoper to include it
+#
+# Edit freely - then re-run `python scripts/build_catalog.py`.
+
+GV.OC-01:
+  question: How does this initiative support the organisation's mission, and what would the business impact be if it were compromised or unavailable?
+  scope: org
+  triggers: [flag:new]
+GV.OC-02:
+  question: Who are the internal and external stakeholders (customers, regulators, partners) and what security expectations do they have of this solution?
+  scope: project
+  triggers: [customer, partner, external, public]
+GV.OC-03:
+  question: Which legal, regulatory, contractual and privacy obligations apply (e.g. Privacy Act, GDPR, PCI DSS, APRA CPS 234, SOC 2) and how will compliance be demonstrated?
+  scope: project
+  baseline: true
+  triggers: [flag:personal_data, pci, card, gdpr, privacy, health, regulat, compliance, apra, hipaa, sox]
+GV.OC-04:
+  question: Will external parties depend on this service? What availability, integrity and confidentiality commitments (SLAs) are being made to them?
+  scope: project
+  triggers: [customer, sla, api, partner, external, public, flag:internet_facing]
+GV.OC-05:
+  question: What upstream services, platforms and suppliers does this solution depend on, and how are those dependencies documented?
+  scope: project
+  triggers: [flag:third_party, saas, vendor, dependency, integration, api]
+GV.RM-01:
+  question: Have security risk management objectives for this initiative been agreed with the business owner?
+  scope: org
+GV.RM-02:
+  question: Does the residual risk of this solution sit within the organisation's stated risk appetite and tolerance? Who accepts residual risk?
+  scope: project
+  baseline: true
+GV.RM-03:
+  question: Will risks identified in this review be recorded in the enterprise risk register?
+  scope: org
+GV.RM-04:
+  question: Have the risk response options (accept, mitigate, transfer, avoid) been defined for identified risks?
+  scope: org
+GV.RM-05:
+  question: Are communication lines for escalating security risks for this solution (including from suppliers) defined?
+  scope: org
+  triggers: [flag:third_party]
+GV.RM-06:
+  question: Has the standard risk assessment methodology been used to rate the risks of this change?
+  scope: org
+GV.RM-07:
+  question: Are there security opportunities (e.g. retiring legacy systems, consolidating tooling) this initiative enables?
+  scope: org
+GV.RR-01:
+  question: Which executive/business owner is accountable for the security risk of this solution?
+  scope: project
+  baseline: true
+GV.RR-02:
+  question: Are security roles and responsibilities (system owner, data owner, operations, support) defined and documented for this solution, including a RACI?
+  scope: project
+  triggers: [flag:new, flag:third_party, outsourc, managed service]
+GV.RR-03:
+  question: Is there adequate budget and resourcing for security controls, tooling and ongoing operations for this solution?
+  scope: project
+  triggers: [flag:new]
+GV.RR-04:
+  question: Do people with privileged access to this solution go through appropriate screening, onboarding and offboarding processes?
+  scope: org
+  triggers: [contractor, outsourc, offshore]
+GV.PO-01:
+  question: Which security policies and standards apply to this solution, and are there any planned deviations or exceptions?
+  scope: project
+  baseline: true
+GV.PO-02:
+  question: Does this change require any security policy or standard to be created or updated?
+  scope: org
+  triggers: [flag:uses_ai, new technology, emerging]
+GV.OV-01:
+  question: How will security outcomes of this solution be reported to governance forums?
+  scope: org
+GV.OV-02:
+  question: Does this initiative require any change to the security strategy or roadmap?
+  scope: org
+GV.OV-03:
+  question: What security metrics/KPIs will be tracked for this solution once in production?
+  scope: org
+GV.SC-01:
+  question: Has the supply-chain risk management process been followed for any new supplier involved in this initiative?
+  scope: org
+  triggers: [flag:third_party]
+GV.SC-02:
+  question: Are cybersecurity roles and responsibilities between the organisation and the supplier/partner clearly defined (shared responsibility model)?
+  scope: project
+  triggers: [flag:third_party, saas, vendor, cloud, managed service, outsourc]
+GV.SC-03:
+  question: Are supplier risks for this solution captured within the organisation's risk management process?
+  scope: org
+  triggers: [flag:third_party]
+GV.SC-04:
+  question: Has each supplier been tiered by criticality based on the data they access and the services they provide?
+  scope: project
+  triggers: [flag:third_party, vendor, supplier, saas]
+GV.SC-05:
+  question: Do contracts include security requirements such as right to audit, breach notification timeframes, data location, data return/destruction and certifications (ISO 27001 / SOC 2)?
+  scope: project
+  triggers: [flag:third_party, vendor, supplier, saas, contract]
+GV.SC-06:
+  question: What security due diligence (questionnaire, SOC 2 report, pen test summary) has been performed on the supplier before onboarding?
+  scope: project
+  triggers: [flag:third_party, vendor, supplier, saas]
+GV.SC-07:
+  question: How will supplier security risk be monitored over the life of the relationship (re-assessments, attestations, security ratings)?
+  scope: project
+  triggers: [flag:third_party, vendor, supplier, saas]
+GV.SC-08:
+  question: Is the supplier included in incident response and recovery planning, with agreed contacts and notification obligations?
+  scope: project
+  triggers: [flag:third_party, vendor, supplier, saas, managed service]
+GV.SC-09:
+  question: How is the security of third-party software components and services verified throughout the lifecycle (SBOM, dependency scanning, signed artefacts)?
+  scope: project
+  triggers: [open source, library, package, dependency, container, image, npm, pip, maven, sbom]
+GV.SC-10:
+  question: What happens at end of contract - how will data be returned or destroyed and access revoked?
+  scope: project
+  triggers: [flag:third_party, vendor, supplier, saas]
+ID.AM-01:
+  question: Is all hardware and infrastructure (servers, devices, network appliances) introduced by this change recorded in the asset inventory/CMDB?
+  scope: project
+  triggers: [hardware, device, iot, appliance, server, on-prem, laptop, endpoint]
+ID.AM-02:
+  question: Are all software, services, cloud accounts/subscriptions and systems introduced by this change registered in the inventory/CMDB with an owner?
+  scope: project
+  baseline: true
+ID.AM-03:
+  question: Is there an up-to-date architecture and data-flow diagram showing all network connections, trust boundaries, internal and external data flows?
+  scope: project
+  baseline: true
+ID.AM-04:
+  question: Are all external services (SaaS, APIs, managed services) this solution uses recorded in the supplier service inventory?
+  scope: project
+  triggers: [flag:third_party, saas, api, vendor, managed service]
+ID.AM-05:
+  question: What is the classification and criticality of this solution and its data (e.g. Public / Internal / Confidential / Restricted; Tier 1-3)?
+  scope: project
+  baseline: true
+ID.AM-07:
+  question: What data types are stored or processed (PII, financial, health, credentials, IP), where are they stored, and is the data catalogue updated?
+  scope: project
+  baseline: true
+  triggers: [flag:personal_data, data, database, storage, warehouse, lake]
+ID.AM-08:
+  question: How will the solution be managed through its lifecycle, including patching, support end-of-life dates and secure decommissioning?
+  scope: project
+  triggers: [flag:new, legacy, decommission, migration, end of life]
+ID.RA-01:
+  question: How will vulnerabilities in the solution (infrastructure, containers, code, dependencies) be identified, validated and tracked?
+  scope: project
+  baseline: true
+ID.RA-02:
+  question: Is the solution's technology stack covered by threat intelligence feeds and vendor security advisories?
+  scope: org
+  triggers: [flag:internet_facing]
+ID.RA-03:
+  question: Has a threat model (e.g. STRIDE) been completed identifying internal and external threats to this solution?
+  scope: project
+  baseline: true
+ID.RA-04:
+  question: For the threats identified, what are the potential impacts and likelihoods?
+  scope: project
+  baseline: true
+ID.RA-05:
+  question: What is the inherent risk rating for this solution, and how does it drive prioritisation of security controls?
+  scope: project
+  baseline: true
+ID.RA-06:
+  question: For each identified risk, what is the chosen response, the owner and the target remediation date?
+  scope: project
+  baseline: true
+ID.RA-07:
+  question: Is this change going through the change management process with a security impact assessment, and are exceptions recorded?
+  scope: project
+  triggers: [change, upgrade, migration, modification, flag:change]
+ID.RA-08:
+  question: If the solution is externally exposed, is it covered by the vulnerability disclosure / bug bounty process?
+  scope: project
+  triggers: [flag:internet_facing, public, website, portal, api, mobile]
+ID.RA-09:
+  question: How is the authenticity and integrity of software and hardware verified before use (signed packages, trusted registries, checksums)?
+  scope: project
+  triggers: [container, image, package, library, firmware, hardware, download, open source]
+ID.RA-10:
+  question: Have critical suppliers for this solution been assessed before contract signature?
+  scope: project
+  triggers: [flag:third_party, vendor, supplier, saas]
+ID.IM-01:
+  question: Will findings from this review and other assessments feed into an improvement backlog?
+  scope: org
+ID.IM-02:
+  question: Will a penetration test or security test be performed before go-live, and how will findings be remediated?
+  scope: project
+  triggers: [flag:internet_facing, flag:new, pentest, penetration, web, api, mobile, portal]
+ID.IM-03:
+  question: How will operational lessons learned (incidents, outages) be fed back into the security of this solution?
+  scope: org
+ID.IM-04:
+  question: Have incident response and business continuity plans been created or updated to cover this solution?
+  scope: project
+  triggers: [flag:new, critical, tier 1, production]
+PR.AA-01:
+  question: How are identities and credentials for users, service accounts and workloads provisioned, managed and de-provisioned (e.g. via central IdP / SSO, joiner-mover-leaver)?
+  scope: project
+  baseline: true
+PR.AA-02:
+  question: How are user identities proofed before credentials are issued (e.g. customer onboarding, KYC, staff identity verification)?
+  scope: project
+  triggers: [customer, registration, signup, onboarding, kyc, identity, account creation]
+PR.AA-03:
+  question: How are users, services and devices authenticated? Is MFA enforced for all users and mandatory for privileged and remote access?
+  scope: project
+  baseline: true
+PR.AA-04:
+  question: How are identity assertions/tokens (SAML, OIDC, JWT, API keys) protected, signed, validated and expired?
+  scope: project
+  triggers: [sso, saml, oidc, oauth, jwt, token, api, federation, identity]
+PR.AA-05:
+  question: How is authorisation enforced? Is access role-based, least-privilege, separated by duty, and periodically reviewed (including cloud IAM policies)?
+  scope: project
+  baseline: true
+PR.AA-06:
+  question: Is physical access to any hardware/facilities supporting this solution controlled and monitored?
+  scope: project
+  triggers: [hardware, data centre, datacenter, on-prem, office, device, iot, facility]
+PR.AT-01:
+  question: Do end users of this solution need security awareness guidance (e.g. phishing, data handling) specific to this solution?
+  scope: org
+  triggers: [flag:uses_ai, end user, staff, employee]
+PR.AT-02:
+  question: Do engineers, administrators and support staff have the skills and training to securely build and operate this technology?
+  scope: project
+  triggers: [new technology, flag:uses_ai, kubernetes, cloud, emerging]
+PR.DS-01:
+  question: How is data at rest protected - encryption (algorithm, key management/CMK, rotation), integrity controls and access restrictions on storage?
+  scope: project
+  baseline: true
+PR.DS-02:
+  question: How is data in transit protected - TLS 1.2+ on all internal and external connections, certificate management, and no plaintext protocols?
+  scope: project
+  baseline: true
+PR.DS-10:
+  question: How is data protected while in use (masking, tokenisation, memory protection, confidential computing, preventing leakage into logs or AI prompts)?
+  scope: project
+  triggers: [flag:personal_data, flag:uses_ai, pii, card, tokenis, masking, analytics, llm, prompt]
+PR.DS-11:
+  question: How are backups created, protected (immutable/encrypted/segregated), retained and restore-tested, and do RPO/RTO meet business needs?
+  scope: project
+  baseline: true
+PR.PS-01:
+  question: How is secure configuration managed (hardened baselines, infrastructure as code, policy-as-code scanning e.g. Checkov, drift detection)?
+  scope: project
+  baseline: true
+PR.PS-02:
+  question: How will software and dependencies be patched and kept supported, and what are the patching SLAs by severity?
+  scope: project
+  baseline: true
+PR.PS-03:
+  question: How will hardware be maintained, refreshed and securely disposed of (data sanitisation)?
+  scope: project
+  triggers: [hardware, device, iot, appliance, server, on-prem, laptop]
+PR.PS-04:
+  question: What security-relevant logs (authentication, admin actions, data access, API calls, network flows) are generated and forwarded to the SIEM, and how long are they retained?
+  scope: project
+  baseline: true
+PR.PS-05:
+  question: How is installation or execution of unauthorised software prevented (application allow-listing, admission control, trusted image registries)?
+  scope: project
+  triggers: [endpoint, server, container, kubernetes, image, workstation, vm]
+PR.PS-06:
+  question: Are secure SDLC practices applied - security requirements, code review, SAST/DAST/SCA, secrets scanning, and protected CI/CD pipelines?
+  scope: project
+  triggers: [develop, code, application, app, api, pipeline, ci/cd, github, gitlab, software, build]
+PR.IR-01:
+  question: How is the network protected from unauthorised access - segmentation, private endpoints, security groups/firewalls, WAF and zero-trust controls?
+  scope: project
+  baseline: true
+PR.IR-02:
+  question: Are hosting facilities protected from environmental threats (power, fire, flood, cooling), or is this inherited from the cloud provider?
+  scope: project
+  triggers: [data centre, datacenter, on-prem, hardware, facility, colo]
+PR.IR-03:
+  question: What resilience mechanisms meet availability requirements (multi-AZ/region, redundancy, failover, DDoS protection), and have they been tested?
+  scope: project
+  baseline: true
+PR.IR-04:
+  question: How is capacity planned and monitored (auto-scaling, quotas, rate limiting) to maintain availability under load or attack?
+  scope: project
+  triggers: [flag:internet_facing, scale, traffic, api, high availability, performance]
+DE.CM-01:
+  question: How is network traffic to and from the solution monitored for adverse events (IDS/IPS, flow logs, WAF logs, DNS monitoring)?
+  scope: project
+  baseline: true
+DE.CM-02:
+  question: Is the physical environment hosting the solution monitored (CCTV, access logs, alarms)?
+  scope: project
+  triggers: [data centre, datacenter, on-prem, office, facility]
+DE.CM-03:
+  question: How is user and privileged activity monitored for anomalies (UEBA, privileged session monitoring, impossible travel)?
+  scope: project
+  triggers: [privileged, admin, user, staff, insider, flag:personal_data]
+DE.CM-06:
+  question: How are external service provider activities and access monitored (supplier access logs, SaaS audit logs, CASB)?
+  scope: project
+  triggers: [flag:third_party, vendor, supplier, saas, managed service, outsourc]
+DE.CM-09:
+  question: How are hosts, containers, runtimes and data monitored for malicious activity (EDR, CSPM, runtime protection, file integrity monitoring)?
+  scope: project
+  baseline: true
+DE.AE-02:
+  question: Are detection use-cases/alerts defined for the specific threats to this solution, and who triages them?
+  scope: project
+  triggers: [flag:internet_facing, critical, flag:personal_data]
+DE.AE-03:
+  question: Are logs from this solution correlated with other sources in the SIEM?
+  scope: project
+  triggers: [siem, log, monitor]
+DE.AE-04:
+  question: Can the impact and scope of a security event on this solution be quickly understood (asset criticality, data mapping in the SIEM)?
+  scope: org
+DE.AE-06:
+  question: Are security alerts from this solution routed to the SOC / on-call team and relevant tools?
+  scope: project
+  triggers: [alert, monitor, soc, on-call]
+DE.AE-07:
+  question: Is threat intelligence integrated into the detection for this solution (e.g. IOC matching, threat feeds on WAF)?
+  scope: org
+DE.AE-08:
+  question: Are incident declaration criteria defined for events affecting this solution?
+  scope: org
+RS.MA-01:
+  question: Does the incident response plan cover this solution, including third parties and their contacts?
+  scope: project
+  triggers: [flag:third_party, flag:new, critical]
+RS.MA-02:
+  question: Who will triage and validate incident reports concerning this solution?
+  scope: org
+RS.MA-03:
+  question: Is the solution's criticality recorded so incidents can be categorised and prioritised correctly?
+  scope: org
+RS.MA-04:
+  question: Are escalation paths (technical, business, legal, privacy, regulator) defined for incidents on this solution?
+  scope: project
+  triggers: [flag:personal_data, regulat, critical]
+RS.MA-05:
+  question: Are criteria defined for when to initiate recovery of this solution after an incident?
+  scope: org
+RS.AN-03:
+  question: Is sufficient forensic data (logs, snapshots, memory) available to determine root cause of an incident on this solution?
+  scope: project
+  triggers: [critical, flag:internet_facing, cloud, container]
+RS.AN-06:
+  question: Will investigative actions on this solution be recorded with integrity preserved (chain of custody)?
+  scope: org
+RS.AN-07:
+  question: Are logs and incident data protected from tampering (immutable storage, restricted access, integrity validation)?
+  scope: project
+  triggers: [log, audit, critical]
+RS.AN-08:
+  question: Can the magnitude of an incident (records affected, systems impacted) be estimated for this solution?
+  scope: org
+  triggers: [flag:personal_data]
+RS.CO-02:
+  question: Are notification obligations to customers, regulators and partners (e.g. Notifiable Data Breaches, GDPR 72h) understood for this solution?
+  scope: project
+  triggers: [flag:personal_data, regulat, customer]
+RS.CO-03:
+  question: Are information sharing arrangements defined with stakeholders during an incident?
+  scope: org
+RS.MI-01:
+  question: What containment capabilities exist (isolate hosts, revoke credentials, block traffic, disable features/kill switch)?
+  scope: project
+  triggers: [flag:internet_facing, critical, flag:uses_ai]
+RS.MI-02:
+  question: How would a threat be eradicated from this solution (rebuild from IaC/golden images, credential rotation)?
+  scope: project
+  triggers: [critical, infrastructure, cloud]
+RC.RP-01:
+  question: Does the recovery plan cover this solution and is it executable from the incident response process?
+  scope: project
+  triggers: [critical, tier 1, flag:new]
+RC.RP-02:
+  question: Are recovery actions for this solution prioritised and documented in runbooks?
+  scope: project
+  triggers: [critical, tier 1]
+RC.RP-03:
+  question: How is the integrity of backups and restoration assets verified before restore (malware scanning, immutability, checksums)?
+  scope: project
+  triggers: [backup, ransomware, critical]
+RC.RP-04:
+  question: Have post-incident operational norms been defined for critical functions of this solution?
+  scope: org
+RC.RP-05:
+  question: How will the integrity of restored systems and data be verified before returning to normal operations?
+  scope: project
+  triggers: [critical, backup]
+RC.RP-06:
+  question: Are criteria defined to declare the end of recovery and complete documentation?
+  scope: org
+RC.CO-03:
+  question: Who communicates recovery progress to internal and external stakeholders for this solution?
+  scope: org
+RC.CO-04:
+  question: Are approved public messaging templates in place for outages or incidents affecting customers of this solution?
+  scope: org
+  triggers: [customer, public, flag:internet_facing]

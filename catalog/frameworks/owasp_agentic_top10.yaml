@@ -1,0 +1,80 @@
+# OWASP Top 10 for Agentic Applications 2026 (OWASP GenAI Security Project, Agentic Security Initiative,
+# released December 2025). Titles are official; text is condensed from the official risk descriptions.
+# question/scope/baseline/triggers are the review layer (same conventions as csf_questions.yaml).
+# controls / csf are left empty: OWASP publishes no authoritative SP 800-53 / CSF mapping.
+id: owasp_agentic
+name: OWASP Top 10 for Agentic Applications
+short: OWASP Agentic
+version: "2026"
+order: 45
+source: https://genai.owasp.org/2025/12/09/owasp-top-10-for-agentic-applications-the-benchmark-for-agentic-security-in-the-age-of-autonomous-ai/
+applies_when: {any: [system:ai_agent]}
+function:
+  id: OWASP-ASI
+  title: OWASP Top 10 for Agentic Applications 2026
+  text: "The most critical security risks facing autonomous and agentic AI systems."
+  color: RC
+requirements:
+  - id: OWASP-ASI.ASI01
+    title: "ASI01 Agent Goal Hijack"
+    text: "Agents and the underlying model cannot reliably distinguish instructions from related content. Attackers can manipulate an agent's objectives, task selection, or decision pathways through prompt-based manipulation, deceptive tool outputs, malicious artefacts, forged agent-to-agent messages, or poisoned external data."
+    question: "How does the agent keep its goals and plans from being redirected by untrusted content (documents, emails, web pages, tool output, other agents), and how are goal changes detected?"
+    scope: project
+    baseline: true
+    triggers: [rag, retriev, email, document, browse, web search, multi-agent]
+  - id: OWASP-ASI.ASI02
+    title: "ASI02 Tool Misuse and Exploitation"
+    text: "Agents can misuse legitimate tools due to prompt injection, misalignment, or unsafe delegation or ambiguous instruction - leading to data exfiltration, tool output manipulation or workflow hijacking, even while operating within their authorized privileges."
+    question: "Which tools can the agent invoke, with what parameters and limits, and which destructive or costly tool calls require validation or human approval?"
+    scope: project
+    baseline: true
+    triggers: [tool, function calling, mcp, plugin, api, workflow]
+  - id: OWASP-ASI.ASI03
+    title: "ASI03 Identity and Privilege Abuse"
+    text: "Identity and privilege abuse exploits the dynamic trust and delegation in agentic systems to escalate access and bypass controls by manipulating delegation chains, role inheritance, and cached credentials or context."
+    question: "Does each agent have its own governed identity with least-privilege, short-lived credentials, and how is delegated user authority scoped and audited?"
+    scope: project
+    baseline: true
+    triggers: [identity, credential, service account, oauth, token, delegat, data:credentials]
+  - id: OWASP-ASI.ASI04
+    title: "ASI04 Agentic Supply Chain Vulnerabilities"
+    text: "Agentic supply chain vulnerabilities arise when agents, tools, and related artefacts they work with are provided by third parties and may be malicious, compromised, or tampered with in transit - including models, tools, plug-ins, datasets, other agents, MCP and A2A interfaces, agentic registries and update channels - often composed dynamically at runtime."
+    question: "Which MCP servers, plug-ins, agent frameworks and external agents are loaded (statically or at runtime), and how are they vetted, pinned and verified?"
+    scope: project
+    triggers: [flag:third_party, mcp, a2a, plugin, langchain, llamaindex, autogen, crewai, marketplace]
+  - id: OWASP-ASI.ASI05
+    title: "ASI05 Unexpected Code Execution (RCE)"
+    text: "Agentic systems often generate and execute code. Attackers exploit code-generation features or embedded tool access to escalate actions into remote code execution (RCE), local misuse, or exploitation of internal systems, often bypassing traditional security controls."
+    question: "Can the agent generate or run code, shell commands or package installs, and if so how is execution sandboxed, restricted and reviewed?"
+    scope: project
+    triggers: [code generation, code interpreter, execute, shell, sandbox, script, eval]
+  - id: OWASP-ASI.ASI06
+    title: "ASI06 Memory & Context Poisoning"
+    text: "Memory and context poisoning occurs when adversaries corrupt or seed an agent's stored and retrievable information - conversation history, summaries, embeddings, or RAG stores - with malicious or misleading data that persists across sessions and biases future planning, decisions and tool use."
+    question: "What does the agent remember across sessions (memory, summaries, vector stores), who can write to it, and how is it validated, isolated per user and expired?"
+    scope: project
+    triggers: [memory, rag, vector, embedding, knowledge base, conversation history]
+  - id: OWASP-ASI.ASI07
+    title: "ASI07 Insecure Inter-Agent Communication"
+    text: "Insecure inter-agent communication occurs when the exchanges between coordinating agents lack proper authentication, integrity, confidentiality, or semantic validation, allowing attackers to intercept, spoof, manipulate, or replay messages."
+    question: "If agents communicate with each other, how are messages authenticated, integrity-protected, encrypted and validated?"
+    scope: project
+    triggers: [multi-agent, a2a, orchestrat, sub-agent, agent-to-agent]
+  - id: OWASP-ASI.ASI08
+    title: "ASI08 Cascading Failures"
+    text: "Cascading failures occur when a single fault, such as a hallucination, poisoned memory, or corrupted tool, propagates across autonomous agents and compounds into system-wide harm faster than humans can intervene."
+    question: "What circuit breakers, step limits and checkpoints stop one agent's error propagating through chained agents and workflows?"
+    scope: project
+    triggers: [multi-agent, orchestrat, workflow, autonom, pipeline]
+  - id: OWASP-ASI.ASI09
+    title: "ASI09 Human-Agent Trust Exploitation"
+    text: "Human-agent trust exploitation occurs when adversaries or misaligned designs leverage the trust users place in an agent's fluency, perceived expertise, and anthropomorphic cues to influence decisions, extract sensitive information, or steer harmful actions."
+    question: "How are approvals designed so users independently verify what the agent proposes, rather than rubber-stamping confident recommendations?"
+    scope: project
+    triggers: [approval, human-in-the-loop, human in the loop, assistant, copilot, payment]
+  - id: OWASP-ASI.ASI10
+    title: "ASI10 Rogue Agents"
+    text: "Rogue agents are malicious or compromised AI agents that deviate from their intended function or authorized scope, acting harmfully, deceptively, or parasitically within multi-agent or human-agent ecosystems."
+    question: "How is agent behaviour monitored for drift beyond its intended scope, and how can a misbehaving agent be contained or shut down?"
+    scope: project
+    triggers: [autonom, multi-agent, kill switch, monitor, long-running]

@@ -1,0 +1,251 @@
+# Curated requirement -> Checkov check links (read by the app at runtime).
+#
+# Every NIST CSF 2.0 subcategory has an entry. Requirement ids that are not
+# listed here (e.g. future OWASP / AI RMF requirements) get NO automatic
+# checks - only links added by reviewers on the Mappings page.
+#
+#   <requirement id>:
+#     why: one line explaining the decision
+#     checks: none               # organisational / procedural - no IaC evidence expected
+#   or a link spec:
+#     controls: [SC-28, SC-12]   # rule-derived (high-confidence) 800-53 controls of the check.
+#                                # 'SC-28' matches SC-28 and its enhancements, 'CM-7(5)' matches exactly.
+#                                # Category-default controls (low confidence) are never used.
+#     categories: [LOGGING]      # Checkov categories
+#     include: 'regex'           # check name must match (case-insensitive) - narrows controls/categories
+#     exclude: 'regex'           # check name must not match
+#     checks: [CKV_AWS_19]       # explicit ids - always linked
+#
+# Strength: strong = explicit id, rule-derived control match, or category match
+# narrowed by `include`; related = category-only match without `include`.
+# Reviewers can include / exclude checks on top of this (globally or per review).
+# Restart the app after editing.
+
+# --------------------------------------------------------------------------- GOVERN
+GV.OC-01: {checks: none, why: Organisational mission is understood - business context not configuration}
+GV.OC-02: {checks: none, why: Stakeholder needs and expectations - purely organisational}
+GV.OC-03: {checks: none, why: Legal / regulatory / contractual obligations - compliance process}
+GV.OC-04: {checks: none, why: Critical objectives and services external parties depend on - business analysis}
+GV.OC-05: {checks: none, why: Outcomes and dependencies the organisation relies on - business analysis}
+GV.RM-01: {checks: none, why: Risk management objectives - governance}
+GV.RM-02: {checks: none, why: Risk appetite and tolerance - governance}
+GV.RM-03: {checks: none, why: Cyber risk in enterprise risk management - governance}
+GV.RM-04: {checks: none, why: Strategic risk response direction - governance}
+GV.RM-05: {checks: none, why: Lines of communication for cyber risk - governance}
+GV.RM-06: {checks: none, why: Standardised risk calculation method - governance}
+GV.RM-07: {checks: none, why: Strategic opportunities (positive risks) - governance}
+GV.RR-01: {checks: none, why: Leadership accountability - governance}
+GV.RR-02: {checks: none, why: Roles / responsibilities / authorities - organisational design}
+GV.RR-03: {checks: none, why: Adequate resources - budgeting}
+GV.RR-04: {checks: none, why: Cybersecurity in HR practices - personnel process}
+GV.PO-01: {checks: none, why: Policy established and communicated - governance document}
+GV.PO-02: {checks: none, why: Policy reviewed and updated - governance process}
+GV.OV-01: {checks: none, why: Strategy outcomes reviewed - governance oversight}
+GV.OV-02: {checks: none, why: Strategy reviewed for coverage - governance oversight}
+GV.OV-03: {checks: none, why: Risk management performance evaluated - governance metrics}
+GV.SC-01: {checks: none, why: Supply chain risk management programme - governance}
+GV.SC-02: {checks: none, why: Supplier roles and responsibilities - contracts and RACI}
+GV.SC-03: {checks: none, why: Supply chain risk integrated into ERM - governance}
+GV.SC-04: {checks: none, why: Suppliers known and prioritised by criticality - supplier management}
+GV.SC-05: {checks: none, why: Requirements in supplier contracts - procurement}
+GV.SC-06: {checks: none, why: Supplier due diligence before relationships - procurement}
+GV.SC-07: {checks: none, why: Supplier risk monitored over the relationship - supplier management}
+GV.SC-08: {checks: none, why: Suppliers included in incident planning - IR process}
+GV.SC-09:
+  why: Supply-chain security in the product lifecycle - evidenced by pinned module/action sources, signed code and artefacts, SBOM/provenance
+  controls: [SR-3, SR-4, SR-11, SI-7, CM-14]
+  include: '(module sources?|commit (hash|sha)|version number|pinn?ed|pinning|digest|code[- ]?sign|\bsign(ed|ing|ature)?\b|cosign|sbom|provenance|attestations?|third[- ]party|dependenc)'
+GV.SC-10: {checks: none, why: Supplier offboarding and post-relationship activities - contract process}
+
+# --------------------------------------------------------------------------- IDENTIFY
+ID.AM-01: {checks: none, why: Hardware inventory - CMDB process not IaC configuration}
+ID.AM-02:
+  why: Software, services and systems inventory - resource tagging and configuration recorders support the inventory
+  controls: [CM-8]
+  exclude: '(copy tags to snapshots|tags to launch configurations)'
+ID.AM-03: {checks: none, why: Network and data-flow representations - architecture documentation}
+ID.AM-04: {checks: none, why: Supplier service inventory - supplier management}
+ID.AM-05: {checks: none, why: Asset prioritisation by classification and criticality - business analysis}
+ID.AM-07:
+  why: Data inventory - only sensitive-data discovery / classification services are relevant
+  include: '(macie|data classification|sensitive data|purview|data discovery|\bdlp\b)'
+ID.AM-08:
+  why: Lifecycle management - deprecated runtimes and end-of-life versions
+  controls: [SA-22, SI-2]
+  include: '(deprecated|end of life|\beol\b|supported (versions?|runtimes?)|outdated|latest (version|runtime|python|php|java|node|\.net))'
+  exclude: '(\btls\b|\bssl\b|encryption|latest (version )?tag|oauth|implicit flow)'
+ID.RA-01:
+  why: Vulnerabilities identified - registry/image scanning and vulnerability assessment services
+  controls: [RA-5]
+  exclude: '(log4j|\bamr\b|non vulnerable|not exposed to)'
+ID.RA-02: {checks: none, why: Threat intelligence received from sharing forums - CTI process}
+ID.RA-03: {checks: none, why: Threats identified and recorded - threat modelling}
+ID.RA-04: {checks: none, why: Likelihood and impact of threats - risk assessment}
+ID.RA-05: {checks: none, why: Risk prioritisation - risk assessment}
+ID.RA-06: {checks: none, why: Risk responses chosen and tracked - risk treatment}
+ID.RA-07:
+  why: Changes managed and assessed - branch protection, required approvals and code owners on source control
+  controls: [CM-3, CM-5]
+  exclude: '(clusterroles?|certificatesigningrequest)'
+ID.RA-08: {checks: none, why: Vulnerability disclosure process - organisational process}
+ID.RA-09:
+  why: Authenticity and integrity of software verified before use - code signing, signed commits, digests, pinned sources
+  controls: [SI-7, SR-4, SR-11, CM-14, CM-2]
+  include: '(code[- ]?sign|\bsign(ed|ing|ature)?\b|cosign|content trust|checksums?|digest|commit (hash|sha)|pinn?ed|pinning|module sources?|version number|provenance|attestations?|sbom|trusted registr|image tag|tag should be fixed|latest tag|non latest)'
+  exclude: '\b(logs?|trails?|cloudtrail|audit\w*)\b'
+ID.RA-10: {checks: none, why: Critical suppliers assessed before acquisition - procurement}
+ID.IM-01: {checks: none, why: Improvements identified from evaluations - continuous improvement process}
+ID.IM-02: {checks: none, why: Improvements from security tests and exercises - testing programme}
+ID.IM-03: {checks: none, why: Improvements from operational processes - lessons learned}
+ID.IM-04: {checks: none, why: Incident response and other plans maintained - planning documents}
+
+# --------------------------------------------------------------------------- PROTECT
+PR.AA-01:
+  why: Identities and credentials managed - IAM users and service accounts, password policy, credential storage and hard-coded secrets
+  controls: [AC-2, IA-5]
+  exclude: '(encrypt|\bkms\b|\bcmks?\b|\btls\b|\bssl\b|non-root|root user)'
+PR.AA-02: {checks: none, why: Identity proofing and binding to credentials - onboarding process}
+PR.AA-03:
+  why: Users / services / hardware authenticated - MFA, IdP / SSO integration, anonymous access disabled, API authentication
+  controls: [IA-2, IA-8]
+  exclude: 'hard[- ]?coded'
+PR.AA-04:
+  why: Identity assertions protected and verified - tokens, SAML / OIDC / OAuth flows
+  controls: [IA-2, IA-5, IA-8]
+  include: '(tokens?|\bjwt\b|json web token|saml|oidc|openid|oauth2?|implicit flow|password flow|assertions?|federat\w*|identity provider)'
+  exclude: '(hard[- ]?coded|service account tokens?|mounted|encrypt\w*|at rest)'
+PR.AA-05:
+  why: Access permissions managed with least privilege - IAM / RBAC policies, wildcard and admin grants, public or cross-account resource policies
+  controls: [AC-3, AC-6, AC-21]
+  exclude: '(security groups?|ingress|egress|firewall|\bnsgs?\b|0\.0\.0\.0|::/0|port \d+|\bssh\b|\brdp\b|public ip|ip address|network access|internet|exposed|containers?|privilege escalation|capabilit|host (process|network|ipc|pid)|seccomp|encrypt|\btls\b|\bssl\b|password|\bmfa\b|multi[- ]factor|logg?ing|\blogs?\b)'
+PR.AA-06: {checks: none, why: Physical access managed - facilities}
+PR.AT-01: {checks: none, why: Awareness training - people}
+PR.AT-02: {checks: none, why: Role-based training - people}
+PR.DS-01:
+  why: Data at rest protected - storage / database / disk encryption with managed keys and key rotation plus deletion protection
+  controls: [SC-28, SC-12, CP-9, SI-7]
+  include: '(encrypt|\bsse\b|at[- ]rest|\bcmks?\b|\bkms\b|customer[- ]managed keys?|\bcmek\b|\bbyok\b|key rotation|rotation|double encryption|infrastructure encryption|deletion protection|termination protection|object lock|mfa delete|soft[- ]delete|purge protection)'
+  exclude: '(in[- ]transit|\btransit\b|\btls\b|\bssl\b|https|backups?|snapshots?|key polic)'
+PR.DS-02:
+  why: Data in transit protected - TLS versions / HTTPS-only / certificates / no cleartext protocols
+  controls: [SC-8, SC-13]
+  exclude: '(at[- ]rest|\bdisks?\b|\bvolumes?\b|clusterroles?|certificatesigningrequest)'
+PR.DS-10:
+  why: Data in use protected - confidential computing and data masking only
+  controls: [SC-4, SC-39]
+  include: '(confidential|enclaves?|data masking)'
+PR.DS-11:
+  why: Backups created / protected / maintained - backup plans, PITR, versioning, snapshot protection, geo-redundant backups
+  controls: [CP-9, CP-6]
+  include: '(backups?|snapshots?|point[- ]in[- ]time|\bpitr\b|versioning|restore|recovery|vault lock|object lock)'
+  exclude: '(\blogs?\b|logging|\btrails?\b|cloudtrail|copy tags)'
+PR.PS-01:
+  why: Configuration management applied - hardened workload / container / cluster baselines, IMDSv2, debug disabled
+  controls: [CM-6, CM-7, CM-2, SC-39, SI-11]
+  checks: [CKV_K8S_27, CKV_K8S_86, CKV_K8S_88, CKV_K8S_89, CKV_K8S_113, CKV_K8S_115, CKV_K8S_145, CKV_K8S_146,
+           CKV_GCP_22, CKV_GCP_24, CKV_GCP_68, CKV_GCP_71, CKV2_GCP_19, CKV_AZURE_232]
+  exclude: '(security groups?|ingress|egress|firewall|\bnsgs?\b|network (acl|security)|0\.0\.0\.0|port \d+|public|encrypt|\bkms\b|\btls\b|\bssl\b|https|certificate|audit|\blogs?\b|logging|anonymous|authenticat|\bauth\b|rbac|secrets?|tokens?|password|backup|limits?|requests? should|probes?|liveness|readiness|confidential|enclave|\biam\b|management plane)'
+PR.PS-02:
+  why: Software maintained and replaced - automatic upgrades, patching, supported versions
+  controls: [SI-2, SA-22]
+  exclude: '(\btls\b|\bssl\b|encryption|latest (version )?tag|oauth|implicit flow)'
+PR.PS-03: {checks: none, why: Hardware maintenance and disposal - physical asset process}
+PR.PS-04:
+  why: Log records generated and available - audit / access / flow / diagnostic logging and log retention
+  controls: [AU-2, AU-3, AU-12, AU-11]
+  checks: [CKV_AWS_50, CKV_AWS_73, CKV_AWS_284, CKV_GCP_110, CKV_AZURE_66]
+  exclude: '(encrypt|\bkms\b|\bcmks?\b|iam polic\w*)'
+PR.PS-05:
+  why: Unauthorised software prevented - code-signing enforcement, admission control, binary authorisation, trusted registries
+  controls: [CM-7(5), CM-11, CM-14, SI-7(15)]
+  exclude: '(eventratelimit|signed commits)'
+PR.PS-06:
+  why: Secure software development - CI/CD pipeline and source-control hardening, branch protection, required reviews
+  controls: [SA-10, SA-15, SA-11, CM-3, CM-5]
+  exclude: '(clusterroles?|certificatesigningrequest)'
+PR.IR-01:
+  why: Networks protected from unauthorised access - security groups / firewalls / private endpoints / public exposure / WAF / remote access
+  controls: [SC-7, AC-4, AC-17]
+  exclude: '(\blogs?\b|logging|flow log|encrypt|\bkms\b|\btls\b|\bssl\b|https|password)'
+PR.IR-02: {checks: none, why: Environmental threats to facilities - physical / cloud provider inherited}
+PR.IR-03:
+  why: Resilience mechanisms - multi-AZ / zone redundancy / replication / failover / DDoS protection / health probes
+  controls: [CP-6, CP-7, CP-10, SC-36, SC-5]
+  include: '(multi[- ]?az|zone[- ]?redundan|availability zones?|replicas?|geo[- ]?redundan|high[- ]?availab|replication|failover|cross[- ]region|redundan|multi[- ]region|ddos|\bshield\b|health ?checks?|liveness|readiness|probes?)'
+  exclude: '(encrypt|\bkms\b|minor|upgrade|publicly|public|data source)'
+PR.IR-04:
+  why: Adequate capacity - resource limits and requests, quotas, throttling / rate limiting, auto-scaling
+  controls: [SC-5, SC-6]
+  include: '(limits?|quotas?|throttl\w*|rate[- ]?limit\w*|rate[- ]based|concurren\w*|auto[- ]?scal\w*|capacity|requests? should be set|cpu requests?|memory requests?|event-qps)'
+  exclude: '(supply tags|public ip|launch templates?)'
+
+# --------------------------------------------------------------------------- DETECT
+DE.CM-01:
+  why: Networks monitored - VPC / NSG flow logs, WAF / load balancer / DNS logging, GuardDuty, IDPS
+  controls: [AU-2, AU-12, SI-4]
+  include: '(flow logs?|network watcher|traffic mirror|dns.*(logs?|logging|query)|query log|intrusion|\bidps\b|threat intel|guardduty|\b(waf|wafv2|web application firewall|firewall|load balancers?|elb|alb|cloudfront|api gateway|front door|application gateway|network security groups?|nsgs?)\b.*\b(logs?|logging|monitor\w*|metrics?)\b|\b(logs?|logging|monitor\w*|metrics?)\b.*\b(waf|wafv2|firewall|load balancers?|elb|alb|cloudfront|api gateway)\b)'
+  exclude: '(encrypt|\bkms\b|\bcmks?\b|retention)'
+DE.CM-02: {checks: none, why: Physical environment monitored - facilities}
+DE.CM-03:
+  why: Personnel activity monitored - CloudTrail / activity logs / audit logs / database auditing and connection logging
+  controls: [AU-2, AU-3, AU-12]
+  include: '(cloudtrail|\btrails?\b|audit\w*|activity log|log profile|admin activity|data access|sign[- ]?ins?|log_connections|log_disconnections|pgaudit|user activity|session log|access logs?|access logging)'
+  exclude: '(encrypt|\bkms\b|\bcmks?\b|integrity|validation|retention|maxage|maxbackup|maxsize)'
+DE.CM-06: {checks: none, why: External service provider activity monitored - supplier oversight process}
+DE.CM-09:
+  why: Computing / runtime / data monitored - GuardDuty, Defender plans, Security Hub, Inspector, enhanced monitoring, container insights
+  controls: [SI-4, CA-7, SI-7(9)]
+  include: '(monitor\w*|alarms?|alerts?|insights|guardduty|security cent(er|re)|defender|detective|security hub|threat (detection|protection)|advanced threat|inspector|sentinel|anomal\w*|watcher)'
+  exclude: '(encrypt|\bkms\b|\bcmks?\b|performance insights|health ?checks?)'
+DE.AE-02: {checks: none, why: Adverse events analysed - SOC analysis process}
+DE.AE-03:
+  why: Information correlated from multiple sources - log forwarding to central log analytics / SIEM / Security Hub
+  controls: [AU-2, AU-6, AU-12, SI-4]
+  include: '(integrated with cloudwatch|sent to cloudwatch|log analytics workspace|sentinel|security hub|\bsiem\b|aggregat\w*|centrali[sz]\w*|log sinks?|\bsinks?\b|diagnostic settings?)'
+DE.AE-04: {checks: none, why: Estimated impact and scope of events - analysis process}
+DE.AE-06:
+  why: Adverse event information provided to staff and tools - alert rules and security contact notifications
+  controls: [SI-4]
+  include: '(alerts?|alarms?|security contacts?|notify about|email notifications?|notifications?)'
+  exclude: '(health|liveness|readiness)'
+DE.AE-07:
+  why: Threat intelligence integrated into analysis - threat-intel / IDPS modes on firewalls
+  controls: [PM-16, SI-4]
+  include: '(threat intel\w*|\bidps\b|intrusion)'
+DE.AE-08: {checks: none, why: Incidents declared against criteria - IR process}
+
+# --------------------------------------------------------------------------- RESPOND
+RS.MA-01: {checks: none, why: Incident response plan executed - IR process}
+RS.MA-02: {checks: none, why: Incident reports triaged and validated - IR process}
+RS.MA-03: {checks: none, why: Incidents categorised and prioritised - IR process}
+RS.MA-04: {checks: none, why: Incidents escalated as needed - IR process}
+RS.MA-05: {checks: none, why: Criteria for initiating recovery - IR process}
+RS.AN-03:
+  why: Analysis to establish what happened - forensic evidence sources (multi-region CloudTrail / audit / flow / activity logs)
+  controls: [AU-2, AU-12]
+  include: '(cloudtrail|\btrails?\b|all regions|multi[- ]region|flow logs?|audit logs?|log file validation|activity log)'
+  exclude: '(encrypt|\bkms\b|\bcmks?\b|retention)'
+RS.AN-06: {checks: none, why: Investigation actions recorded with integrity - chain-of-custody process}
+RS.AN-07:
+  why: Incident data and metadata preserved - log integrity validation / log encryption / log retention
+  controls: [AU-9, AU-11]
+  include: '(\blogs?\b|logging|\btrails?\b|cloudtrail|audit\w*|maxage|maxbackup|maxsize)'
+RS.AN-08: {checks: none, why: Incident magnitude estimated - analysis process}
+RS.CO-02: {checks: none, why: Stakeholders notified of incidents - communications process}
+RS.CO-03: {checks: none, why: Information shared with stakeholders - communications process}
+RS.MI-01: {checks: none, why: Incidents contained - operational response actions}
+RS.MI-02: {checks: none, why: Incidents eradicated - operational response actions}
+
+# --------------------------------------------------------------------------- RECOVER
+RC.RP-01: {checks: none, why: Recovery plan executed - recovery process}
+RC.RP-02: {checks: none, why: Recovery actions selected and performed - recovery process}
+RC.RP-03:
+  why: Integrity of backups verified before restore - immutable / locked / versioned backups
+  controls: [CP-9, SI-7]
+  include: '(object lock|vault lock|immutab\w*|mfa delete|versioning|backups?.*(lock|immutab\w*|vault))'
+RC.RP-04: {checks: none, why: Post-incident operational norms - business continuity process}
+RC.RP-05: {checks: none, why: Integrity of restored assets verified - recovery validation process}
+RC.RP-06: {checks: none, why: End of recovery declared - recovery process}
+RC.CO-03: {checks: none, why: Recovery progress communicated - communications process}
+RC.CO-04: {checks: none, why: Public updates on recovery - communications process}
+
