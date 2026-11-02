@@ -1,5 +1,5 @@
 # Sentinel: AI Security Review
-
+![screenshot.png](screenshot.png)
 A queue-based workspace for running security design reviews of **new initiatives and changes**.
 You describe the change, AI picks the relevant NIST requirements, and the reviewer works through them.
 Each requirement links down to SP 800-53 controls and then to Checkov technical checks.
