@@ -1,0 +1,12 @@
+{
+  "{\"file_path\": \"main.tf\", \"tf_source_modules\": null}": {
+    "locals": [
+      {
+        "NUM": ["1"],
+        "STRING": ["a string"],
+        "INVALID_ARRAY": ["${tostring([])}"],
+        "INNER_CURLY": ["annoying {"]
+      }
+    ]
+  }
+}

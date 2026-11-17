@@ -1,0 +1,17 @@
+--- a/terraform/gcp/instances.tf
++++ b/terraform/gcp/instances.tf
+@@ -35,6 +35,9 @@
+ 
+ resource "google_compute_disk" "unencrypted_disk" {
+   name = "terragoat-${var.environment}-disk"
++  disk_encryption_key {
++    raw_key = "SGVsbG8gZnJvbSBHb29nbGUgQ2xvdWQgUGxhdGZvcm0="
++  }
+   labels = {
+     git_commit           = "2bdc0871a5f4505be58244029cc6485d45d7bb8e"
+     git_file             = "terraform__gcp__instances_tf"
+@@ -45,4 +48,4 @@
+     git_repo             = "terragoat"
+     yor_trace            = "bf87b7d7-a9d8-4f03-a0d4-8a4cbb647d03"
+   }
+-}+}

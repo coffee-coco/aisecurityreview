@@ -9,6 +9,7 @@ import {
 import {
   checkRow, includeCheckLink, openControlDrawer, removeCheckLink, restoreCheckLink,
 } from './shared.js';
+import { devil } from '../devil.js';
 
 const TEXT_FIELDS = new Set(['title', 'answer', 'notes', 'risk', 'impact_description', 'recommendation']);
 const KIND = {
@@ -258,7 +259,7 @@ function headInner(ctx, i) {
   return `<span class="ans ${i.answered ? 'done' : 'todo'}" title="${i.answered ? 'Answered' : 'Not answered yet'}">${i.answered ? icon('check') : ''}</span>
     <span class="lbl">${esc(i.label)}</span>
     <div class="txt"><div class="cat">${cat}</div><div class="out ${title ? '' : 'placeholder'}">${esc(title || `Untitled ${KIND[i.kind].label.toLowerCase()}`)}</div></div>
-    <div class="tags">${tags.join('')}</div>${icon('chevron', 'chev')}`;
+    <div class="tags">${tags.join('')}</div>${devil({ type: 'item', ref: i.id, owner: ctx.r.id })}${icon('chevron', 'chev')}`;
 }
 
 function updateHead(el, ctx, id) {

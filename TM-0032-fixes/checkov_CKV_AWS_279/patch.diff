@@ -1,0 +1,9 @@
+--- a/terraform/aws/neptune.tf
++++ b/terraform/aws/neptune.tf
+@@ -41,5 +41,6 @@
+ resource "aws_neptune_cluster_snapshot" "default" {
+   db_cluster_identifier          = aws_neptune_cluster.default.id
+   db_cluster_snapshot_identifier = "resourcetestsnapshot1"
++  storage_encrypted              = true
+ }
+ 

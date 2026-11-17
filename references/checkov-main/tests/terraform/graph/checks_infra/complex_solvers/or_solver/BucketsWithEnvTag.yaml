@@ -1,0 +1,20 @@
+metadata:
+  name: "example"
+  category: "GENERAL_SECURITY"
+  id: "BucketsWithEnvTag"
+scope:
+  provider: "AWS"
+definition:
+  or:
+    - cond_type: "attribute"
+      resource_types:
+        - "aws_s3_bucket"
+      attribute: "tags.Environment"
+      operator: "equals"
+      value: "Dev"
+    - cond_type: "attribute"
+      resource_types:
+        - "aws_s3_bucket"
+      attribute: "tags.Environment"
+      operator: "equals"
+      value: "Prod"

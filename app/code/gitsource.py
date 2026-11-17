@@ -2,7 +2,7 @@
 
 Safety rules: https URLs only (``file://`` only when ALLOW_LOCAL_GIT=1, for tests), no credentials in the URL,
 hosts that resolve to loopback/link-local/metadata addresses are refused, git hooks and prompts are disabled,
-an optional access token travels in the process environment (never argv) and is never stored, and the
+an optional access token travels in the process environment (never argv) and is never written to the checkout, and the
 checkout goes through the same limits as zip uploads (symlinks, vendored folders, size and file count).
 """
 from __future__ import annotations
@@ -64,11 +64,11 @@ def validate_url(url: str) -> tuple[str, str]:
     return f"https://{p.netloc}{p.path.rstrip('/')}", re.sub(r"[^A-Za-z0-9_.-]+", "-", name)[:80] or "repo"
 
 
-def _env(token: str | None) -> dict:
+def _env(token: str | None, username: str | None = None) -> dict:
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "echo", "GIT_CONFIG_NOSYSTEM": "1",
            "GIT_CONFIG_GLOBAL": os.devnull, "GCM_INTERACTIVE": "never"}
     if token:
-        basic = base64.b64encode(f"x-access-token:{token}".encode()).decode()
+        basic = base64.b64encode(f"{username or 'x-access-token'}:{token}".encode()).decode()
         env.update(GIT_CONFIG_COUNT="1", GIT_CONFIG_KEY_0="http.extraHeader",
                    GIT_CONFIG_VALUE_0=f"Authorization: Basic {basic}")
     return env
@@ -97,7 +97,8 @@ async def _git(args: list[str], env: dict, cwd: Path | None = None, timeout: int
     return out.decode("utf-8", "replace").strip()
 
 
-async def clone_repo(url: str, dest: Path, ref: str | None = None, token: str | None = None) -> dict:
+async def clone_repo(url: str, dest: Path, ref: str | None = None, token: str | None = None,
+                     username: str | None = None) -> dict:
     """Shallow-clone into ``dest`` and return document metadata. ``dest`` is removed on failure."""
     clean, name = validate_url(url)
     ref = (ref or "").strip() or None
@@ -106,7 +107,7 @@ async def clone_repo(url: str, dest: Path, ref: str | None = None, token: str | 
     if dest.exists():
         shutil.rmtree(dest, ignore_errors=True)
     dest.parent.mkdir(parents=True, exist_ok=True)
-    env = _env(token)
+    env = _env(token, username)
     args = ["-c", "core.hooksPath=/dev/null", "-c", "core.symlinks=false", "-c", "protocol.version=2"]
     if clean.startswith("file://"):
         args += ["-c", "protocol.file.allow=always"]

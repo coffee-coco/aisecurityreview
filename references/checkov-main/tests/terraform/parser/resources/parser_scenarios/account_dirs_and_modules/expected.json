@@ -1,0 +1,200 @@
+{
+  "{\"file_path\": \"envs/myaccount/us-east-1/main.tf\", \"tf_source_modules\": null}": {
+    "module": [
+      {
+        "mydb": {
+          "source": ["../../../modules/db"],
+          "DB_INSTANCE_TYPE": ["db.t3.small"],
+          "ENGINE_VERSION": [11],
+          "ENCRYPTED": [true],
+          "__resolved__": [
+            "{\"file_path\": \"modules/db/db.tf\", \"tf_source_modules\": {\"path\": \"envs/myaccount/us-east-1/main.tf\", \"name\": \"mydb\", \"foreach_idx\": null, \"nested_tf_module\": null}}",
+            "{\"file_path\": \"modules/db/variables.tf\", \"tf_source_modules\": {\"path\": \"envs/myaccount/us-east-1/main.tf\", \"name\": \"mydb\", \"foreach_idx\": null, \"nested_tf_module\": null}}"
+          ],
+          "__start_line__": 1,
+          "__end_line__": 6,
+          "__address__": "mydb"
+        }
+      }
+    ]
+  },
+  "{\"file_path\": \"envs/myaccount/us-east-1/variables.tf\", \"tf_source_modules\": null}": {
+    "variable": [
+      {
+        "ENGINE_VERSION": {
+          "__start_line__": 1,
+          "__end_line__": 1,
+          "__address__": "ENGINE_VERSION"
+        }
+      },
+      {
+        "DB_INSTANCE_TYPE": {
+          "__start_line__": 2,
+          "__end_line__": 2,
+          "__address__": "DB_INSTANCE_TYPE"
+        }
+      },
+      {
+        "ENCRYPTED": {
+          "__start_line__": 3,
+          "__end_line__": 3,
+          "__address__": "ENCRYPTED"
+        }
+      }
+    ]
+  },
+  "{\"file_path\": \"modules/db/variables.tf\", \"tf_source_modules\": {\"path\": \"envs/myaccount/us-east-1/main.tf\", \"name\": \"mydb\", \"foreach_idx\": null, \"nested_tf_module\": null}}": {
+    "variable": [
+      {
+        "DB_DELETION_PROTECTION": {
+          "default": [true],
+          "__start_line__": 1,
+          "__end_line__": 3,
+          "__address__": "module.mydb.DB_DELETION_PROTECTION"
+        }
+      },
+      {
+        "ENGINE_VERSION": {
+          "default": [11],
+          "__start_line__": 5,
+          "__end_line__": 7,
+          "__address__": "module.mydb.ENGINE_VERSION"
+        }
+      },
+      {
+        "DB_INSTANCE_TYPE": {
+          "default": ["db.t3.small"],
+          "__start_line__": 9,
+          "__end_line__": 11,
+          "__address__": "module.mydb.DB_INSTANCE_TYPE"
+        }
+      },
+      {
+        "ENCRYPTED": {
+          "__start_line__": 13,
+          "__end_line__": 13,
+          "__address__": "module.mydb.ENCRYPTED"
+        }
+      }
+    ]
+  },
+  "{\"file_path\": \"modules/db/db.tf\", \"tf_source_modules\": {\"path\": \"envs/myaccount/us-east-1/main.tf\", \"name\": \"mydb\", \"foreach_idx\": null, \"nested_tf_module\": null}}": {
+    "resource": [
+      {
+        "aws_db_instance": {
+          "db": {
+            "name": ["my_db"],
+            "instance_class": ["db.t3.small"],
+            "engine": ["postgres"],
+            "engine_version": [11],
+            "storage_type": ["gp2"],
+            "deletion_protection": [true],
+            "storage_encrypted": [true],
+            "__start_line__": 1,
+            "__end_line__": 9,
+            "__address__": "module.mydb.aws_db_instance.db"
+          }
+        }
+      }
+    ]
+  },
+  "{\"file_path\": \"envs/myotheraccount/us-east-1/main.tf\", \"tf_source_modules\": null}": {
+    "module": [
+      {
+        "mydb": {
+          "source": ["../../../modules/db"],
+          "DB_INSTANCE_TYPE": ["db.t9.mega"],
+          "ENGINE_VERSION": [11],
+          "ENCRYPTED": [true],
+          "__resolved__": [
+            "{\"file_path\": \"modules/db/db.tf\", \"tf_source_modules\": {\"path\": \"envs/myotheraccount/us-east-1/main.tf\", \"name\": \"mydb\", \"foreach_idx\": null, \"nested_tf_module\": null}}",
+            "{\"file_path\": \"modules/db/variables.tf\", \"tf_source_modules\": {\"path\": \"envs/myotheraccount/us-east-1/main.tf\", \"name\": \"mydb\", \"foreach_idx\": null, \"nested_tf_module\": null}}"
+          ],
+          "__start_line__": 1,
+          "__end_line__": 6,
+          "__address__": "mydb"
+        }
+      }
+    ]
+  },
+  "{\"file_path\": \"envs/myotheraccount/us-east-1/variables.tf\", \"tf_source_modules\": null}": {
+    "variable": [
+      {
+        "ENGINE_VERSION": {
+          "__start_line__": 1,
+          "__end_line__": 1,
+          "__address__": "ENGINE_VERSION"
+        }
+      },
+      {
+        "DB_INSTANCE_TYPE": {
+          "__start_line__": 2,
+          "__end_line__": 2,
+          "__address__": "DB_INSTANCE_TYPE"
+        }
+      },
+      {
+        "ENCRYPTED": {
+          "__start_line__": 3,
+          "__end_line__": 3,
+          "__address__": "ENCRYPTED"
+        }
+      }
+    ]
+  },
+  "{\"file_path\": \"modules/db/variables.tf\", \"tf_source_modules\": {\"path\": \"envs/myotheraccount/us-east-1/main.tf\", \"name\": \"mydb\", \"foreach_idx\": null, \"nested_tf_module\": null}}": {
+    "variable": [
+      {
+        "DB_DELETION_PROTECTION": {
+          "default": [true],
+          "__start_line__": 1,
+          "__end_line__": 3,
+          "__address__": "module.mydb.DB_DELETION_PROTECTION"
+        }
+      },
+      {
+        "ENGINE_VERSION": {
+          "default": [11],
+          "__start_line__": 5,
+          "__end_line__": 7,
+          "__address__": "module.mydb.ENGINE_VERSION"
+        }
+      },
+      {
+        "DB_INSTANCE_TYPE": {
+          "default": ["db.t9.mega"],
+          "__start_line__": 9,
+          "__end_line__": 11,
+          "__address__": "module.mydb.DB_INSTANCE_TYPE"
+        }
+      },
+      {
+        "ENCRYPTED": {
+          "__start_line__": 13,
+          "__end_line__": 13,
+          "__address__": "module.mydb.ENCRYPTED"
+        }
+      }
+    ]
+  },
+  "{\"file_path\": \"modules/db/db.tf\", \"tf_source_modules\": {\"path\": \"envs/myotheraccount/us-east-1/main.tf\", \"name\": \"mydb\", \"foreach_idx\": null, \"nested_tf_module\": null}}": {
+    "resource": [
+      {
+        "aws_db_instance": {
+          "db": {
+            "name": ["my_db"],
+            "instance_class": ["db.t9.mega"],
+            "engine": ["postgres"],
+            "engine_version": [11],
+            "storage_type": ["gp2"],
+            "deletion_protection": [true],
+            "storage_encrypted": [true],
+            "__start_line__": 1,
+            "__end_line__": 9,
+            "__address__": "module.mydb.aws_db_instance.db"
+          }
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,36 @@
+--- a/terraform/aws/ec2.tf
++++ b/terraform/aws/ec2.tf
+@@ -31,11 +31,21 @@
+   })
+ }
+ 
++resource "aws_kms_key" "web_host_storage_key" {
++  description             = "KMS key for EBS volume encryption"
++  deletion_window_in_days = 7
++  enable_key_rotation     = true
++
++  tags = merge({
++    Name = "${local.resource_prefix.value}-ebs-kms-key"
++  })
++}
++
+ resource "aws_ebs_volume" "web_host_storage" {
+-  # unencrypted volume
+   availability_zone = "${var.region}a"
+-  #encrypted         = false  # Setting this causes the volume to be recreated on apply 
+-  size = 1
++  encrypted         = true
++  kms_key_id        = aws_kms_key.web_host_storage_key.arn
++  size              = 1
+   tags = merge({
+     Name = "${local.resource_prefix.value}-ebs"
+     }, {
+@@ -74,7 +84,7 @@
+   instance_id = "${aws_instance.web_host.id}"
+ }
+ 
+-resource "aws_security_group" "web-node" {
++resource "aws_security_group" "web-node"
+   # security group is open to the world in SSH port
+   name        = "${local.resource_prefix.value}-sg"
+   description = "${local.resource_prefix.value} Security Group"

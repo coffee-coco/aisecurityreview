@@ -1,0 +1,4 @@
+pass:
+  - 'Pod.default.my-nginx.app-nginx'
+fail:
+  - 'Pod.default.cassandra.app-cassandra'

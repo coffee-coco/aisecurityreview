@@ -6,10 +6,13 @@ import {
   CLS, STATUS, cap, clsBadge, confirmDialog, debounce, esc, fmtDate, icon, riskBadge, scopingOverlay, timeAgo, toast,
 } from '../ui.js';
 import { profileFields, wireProfile } from './profile.js';
+import { canWrite } from '../app.js';
+import { DEVIL_SVG, openMassDevil } from '../devil.js';
 import * as itemsTab from './review-items.js';
 import * as controlsTab from './review-controls.js';
 import * as docsTab from './review-docs.js';
 import * as linkTab from './review-threat-link.js';
+import { devil } from '../devil.js';
 
 const TABS = [
   { id: 'items', label: 'Line items', icon: 'list', mod: itemsTab },
@@ -97,12 +100,14 @@ export async function render(root, id) {
             <select id="status-select" aria-label="Review status">${Object.entries(STATUS).map(([k, v]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${v.label}</option>`).join('')}</select>
           </div>
           <button class="btn" id="rescope-btn">${icon('sparkles')} ${r.ai_meta?.scoped_at ? 'Re-run scoping' : 'Run AI scoping'}</button>
+          ${canWrite() ? `<button class="btn devil-run" id="mass-devil-btn" title="Challenge the risks, recommendations, controls and questions of this review">${DEVIL_SVG} Devil's advocate</button>` : ''}
           <a class="btn" id="export-btn" href="/api/reviews/${r.id}/report.md">${icon('download')} Export</a>
           <button class="btn icon danger" id="delete-btn" title="Delete review">${icon('trash')}</button>
         </div>
       </div>`;
     root.querySelector('#status-select').addEventListener('change', (e) => ctx.patch({ status: e.target.value }, `Status → ${STATUS[e.target.value].label}`));
     root.querySelector('#rescope-btn').addEventListener('click', rescope);
+    root.querySelector('#mass-devil-btn')?.addEventListener('click', () => openMassDevil(ctx.r));
     root.querySelector('#delete-btn').addEventListener('click', async () => {
       if (await confirmDialog(`Delete ${r.ref}?`, 'This permanently removes the review, all line items, controls, uploads and check results.')) {
         await api.del(`/api/reviews/${r.id}`);
@@ -177,7 +182,8 @@ export async function render(root, id) {
     const list = Object.values(state);
     el.innerHTML = list.map((j) => `<div class="job-banner" id="job-${j.id}"><span class="spin"></span>
       <div style="flex:1;min-width:0"><b>${esc(JOB_LABEL[j.kind] || j.kind)}</b> <span class="muted">· ${esc(j.message || '')}</span></div>
-      <div class="progress"><i style="width:${Math.round((j.progress || 0) * 100)}%"></i></div></div>`).join('');
+      <div class="progress"><i style="width:${Math.round((j.progress || 0) * 100)}%"></i></div>${canWrite() && j.id ? `<button class="btn sm ghost danger" data-cancel-job="${esc(j.id)}" title="Cancel this job">${icon('x')} Cancel</button>` : ''}</div>`).join('');
+    wireCancel(el);
   }
   const jobState = {};
   function trackJob(job, { onDone } = {}) {
@@ -245,7 +251,7 @@ export async function render(root, id) {
         <div id="pf-hint"></div>
       </div>
       <div class="card side-card">
-        <h2 class="section-title">${icon('info')} Details</h2>
+        <h2 class="section-title">${icon('info')} Details<span class="spacer"></span>${devil({ type: 'review', owner: r.id })}</h2>
         <div class="stack" style="gap:12px">
           ${[['requester', 'Requester'], ['business_owner', 'Business owner'], ['reviewer', 'Security reviewer'], ['business_unit', 'Business unit']].map(([k, l]) => `
             <div class="field"><label for="d-${k}">${l}</label><input class="input sm" id="d-${k}" data-detail="${k}" value="${esc(r[k])}" placeholder="—" /></div>`).join('')}
@@ -337,4 +343,16 @@ export async function render(root, id) {
     document.removeEventListener('keydown', onKey);
     cleanups.forEach((fn) => fn());
   };
+}
+
+function wireCancel(el) {
+  if (el.dataset.wired) return;
+  el.dataset.wired = '1';
+  el.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-cancel-job]');
+    if (!b) return;
+    b.disabled = true;
+    try { await api.post(`/api/jobs/${b.dataset.cancelJob}/cancel`); toast('Job cancelled - it stops within a few seconds'); }
+    catch (err) { toast(err.message, 'err'); b.disabled = false; }
+  });
 }

@@ -1,0 +1,80 @@
+--- a/terraform/aws/ec2.tf
++++ b/terraform/aws/ec2.tf
+@@ -272,6 +272,15 @@
+   bucket        = "${local.resource_prefix.value}-flowlogs"
+   force_destroy = true
+ 
++  server_side_encryption_configuration {
++    rule {
++      apply_server_side_encryption_by_default {
++        sse_algorithm     = "aws:kms"
++        kms_master_key_id = "${aws_kms_key.logs_key.arn}"
++      }
++    }
++  }
++
+   tags = merge({
+     Name        = "${local.resource_prefix.value}-flowlogs"
+     Environment = local.resource_prefix.value
+--- a/terraform/aws/s3.tf
++++ b/terraform/aws/s3.tf
+@@ -5,6 +5,14 @@
+   # bucket does not have versioning
+   bucket        = "${local.resource_prefix.value}-data"
+   force_destroy = true
++  server_side_encryption_configuration {
++    rule {
++      apply_server_side_encryption_by_default {
++        sse_algorithm     = "aws:kms"
++        kms_master_key_id = "${aws_kms_key.logs_key.arn}"
++      }
++    }
++  }
+   tags = merge({
+     Name        = "${local.resource_prefix.value}-data"
+     Environment = local.resource_prefix.value
+@@ -46,6 +54,14 @@
+   bucket        = "${local.resource_prefix.value}-financials"
+   acl           = "private"
+   force_destroy = true
++  server_side_encryption_configuration {
++    rule {
++      apply_server_side_encryption_by_default {
++        sse_algorithm     = "aws:kms"
++        kms_master_key_id = "${aws_kms_key.logs_key.arn}"
++      }
++    }
++  }
+   tags = merge({
+     Name        = "${local.resource_prefix.value}-financials"
+     Environment = local.resource_prefix.value
+@@ -71,6 +87,14 @@
+     enabled = true
+   }
+   force_destroy = true
++  server_side_encryption_configuration {
++    rule {
++      apply_server_side_encryption_by_default {
++        sse_algorithm     = "aws:kms"
++        kms_master_key_id = "${aws_kms_key.logs_key.arn}"
++      }
++    }
++  }
+   tags = merge({
+     Name        = "${local.resource_prefix.value}-operations"
+     Environment = local.resource_prefix.value
+@@ -98,6 +122,14 @@
+     target_prefix = "log/"
+   }
+   force_destroy = true
++  server_side_encryption_configuration {
++    rule {
++      apply_server_side_encryption_by_default {
++        sse_algorithm     = "aws:kms"
++        kms_master_key_id = "${aws_kms_key.logs_key.arn}"
++      }
++    }
++  }
+   tags = {
+     git_commit           = "d68d2897add9bc2203a5ed0632a5cdd8ff8cefb0"
+     git_file             = "terraform/aws/s3.tf"

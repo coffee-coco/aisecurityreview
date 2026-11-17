@@ -3,6 +3,7 @@
 import { api, upload } from '../api.js';
 import { CLS, cap, clsBadge, confirmDialog, esc, icon, openOverlay, scopingOverlay, timeAgo, toast } from '../ui.js';
 import { DOC_ACCEPT, dropzone, fmtSize, wireDrop } from './upload.js';
+import { devil } from '../devil.js';
 
 const APPLY = [
   ['system_types', 'System type'], ['data_types', 'Data types'], ['exposure', 'Exposure'],
@@ -120,7 +121,7 @@ function designHTML(ctx) {
     <div class="head" style="margin-bottom:12px"><span class="spark">${icon('sparkles')}</span>
       <div style="flex:1"><h2 class="section-title" style="margin:0">Design understanding</h2>
       <div class="small muted">${d.source === 'ai' ? 'AI analysis by' : 'Offline detection ·'} <span class="mono">${esc(d.provider || 'heuristic')}</span> · ${timeAgo(d.analyzed_at)}</div></div>
-      ${d.uses_ai ? `<span class="badge ai">${icon('cpu')} Uses AI</span>` : ''}${d.third_party ? `<span class="badge">${icon('building')} Third party</span>` : ''}</div>
+      ${d.uses_ai ? `<span class="badge ai">${icon('cpu')} Uses AI</span>` : ''}${d.third_party ? `<span class="badge">${icon('building')} Third party</span>` : ''}${devil({ type: 'design', owner: r.id })}</div>
     ${d.warning ? `<div class="warning">${icon('alert')}<div>${esc(d.warning)}</div></div>` : ''}
     <p class="summary">${esc(d.summary || '')}</p>
     <div class="dz-grid">

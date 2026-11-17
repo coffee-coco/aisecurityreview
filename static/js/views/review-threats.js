@@ -4,6 +4,7 @@ import { api, pollJob, upload } from '../api.js';
 import { renderMermaid } from '../mermaid.js';
 import { cap, confirmDialog, debounce, esc, icon, ratingPill, timeAgo, toast } from '../ui.js';
 import { dropzone, wireDrop } from './upload.js';
+import { devil } from '../devil.js';
 
 const VIEWS = [
   { id: 'threat_model', label: 'Threat Model', icon: 'shield', needs: '', title: 'No threat model yet',
@@ -435,6 +436,7 @@ function threatRow(t, dr) {
         <span class="mono muted">${esc(t.id)}</span>
         ${dr?.rating ? `${ratingPill(dr.rating)}<span class="small muted" title="DREAD score">DREAD ${esc(dr.score)}</span>` : ''}
         ${t.likelihood_hint ? `<span class="tag" title="Likelihood">${esc(t.likelihood_hint)}</span>` : ''}
+        ${devil({ type: 'threat', kind: 'threat_model', ref: t.id })}
       </div>
       <h3 class="tm-title">${esc(t.title || 'Untitled threat')}</h3>
       ${t.component ? `<div class="small muted tm-comp">${icon('cpu')} ${esc(t.component)}</div>` : ''}
@@ -634,7 +636,7 @@ function outline(nodes, tmap) {
     if (seen.has(String(n.id))) return '';
     seen.add(String(n.id));
     const type = TREE_TYPES[n.type] ? n.type : 'leaf';
-    const head = `<span class="tm-nt t-${type}">${TREE_TYPES[type]}</span><span class="tm-nl">${esc(n.label || n.id)}</span>${list(n.threat_ids).map((id) => threatChip(id, tmap)).join('')}`;
+    const head = `<span class="tm-nt t-${type}">${TREE_TYPES[type]}</span><span class="tm-nl">${esc(n.label || n.id)}</span>${list(n.threat_ids).map((id) => threatChip(id, tmap)).join('')}${devil({ type: 'threat', kind: 'attack_tree', ref: n.id })}`;
     const inner = list(n.children).map((id) => index.get(String(id))).filter(Boolean).map(node).join('');
     return inner ? `<details open class="tm-node"><summary>${head}</summary><div class="tm-kids">${inner}</div></details>` : `<div class="tm-node leaf">${head}</div>`;
   };
@@ -803,7 +805,7 @@ function viewMitigations(S, box) {
     <div class="row wrap tm-bulk"><span class="small muted">${plural(ms.length, 'mitigation')}</span></div>
     <div class="tm-table-wrap"><table class="flows tm-table"><thead><tr><th>Mitigation</th><th>Threats</th><th>NIST SP 800-53</th><th>Priority</th></tr></thead><tbody>
       ${ms.map((m) => `<tr id="tm-m-${slug(m.id)}" data-mid="${esc(m.id)}">
-          <td class="tm-mt"><b>${esc(m.title || m.id)}</b>${m.description ? `<div class="small muted">${esc(m.description)}</div>` : ''}
+          <td class="tm-mt"><b>${esc(m.title || m.id)}</b>${devil({ type: 'threat', kind: 'mitigations', ref: m.id })}${m.description ? `<div class="small muted">${esc(m.description)}</div>` : ''}
             ${m.library_ref ? `<span class="tag strong" title="Control library reference">${icon('book')} ${esc(m.library_ref)}</span>` : ''}</td>
           <td><div class="chips">${list(m.threat_ids).map((id) => threatChip(id, tmap)).join('') || '<span class="muted">—</span>'}</div></td>
           <td><div class="chips">${list(m.nist).map((n) => `<span class="chip tm-nist">${esc(n)}</span>`).join('') || '<span class="muted">—</span>'}</div></td>
@@ -843,7 +845,7 @@ function viewDread(S, box) {
         ${FACTORS.map(([k, l]) => `<td><input type="number" min="0" max="10" step="1" class="input sm tm-num" data-k="${k}" value="${esc(clampFactor(a[k]))}" style="background:${heat(a[k])}" aria-label="${l} for ${esc(a.threat_id)}" /></td>`).join('')}
         <td class="tm-score">${esc(a.score ?? dreadScore(a))}</td>
         <td class="tm-rating">${ratingPill(a.rating || dreadRating(dreadScore(a)))}</td>
-        <td class="small tm-rat">${esc(a.rationale || '')}</td>
+        <td class="small tm-rat">${esc(a.rationale || '')}${a.threat_id ? devil({ type: 'threat', kind: 'dread', ref: a.threat_id }) : ''}</td>
       </tr>`).join('') || '<tr><td colspan="9" class="muted">No assessments.</td></tr>'}
     </tbody></table></div>`;
   wireThreatLinks(S, el);
@@ -906,7 +908,7 @@ function viewTests(S, box) {
     ${keys.map((k) => `<section class="tm-group">
       <h3 class="tm-group-h">${k ? threatChip(k, tmap) : ''}<span>${esc(tmap[k]?.title || (k ? 'Threat not in the model' : 'Not linked to a threat'))}</span></h3>
       ${groups.get(k).map((c) => `<div class="tm-case" id="tm-c-${slug(c.id)}">
-        <div class="row"><b>${esc(c.title || c.id)}</b><span class="mono muted">${esc(c.id)}</span><span class="spacer"></span>
+        <div class="row"><b>${esc(c.title || c.id)}</b><span class="mono muted">${esc(c.id)}</span>${devil({ type: 'threat', kind: 'test_cases', ref: c.id })}<span class="spacer"></span>
           <button class="btn sm ghost" data-copy="${esc(c.id)}" title="Copy this scenario">${icon('file')} Copy</button></div>
         <pre class="tm-gherkin">${gherkinHTML(c.gherkin)}</pre></div>`).join('')}
     </section>`).join('')}`;

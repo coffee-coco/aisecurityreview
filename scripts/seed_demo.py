@@ -5,16 +5,19 @@ scoped exactly like user-submitted ones. Then a reviewer's progress is layered o
 requirement answers and statuses, Checkov results, status transitions, and back-dated
 timestamps so the queue looks lived-in.
 
-    python scripts/seed_demo.py              # seed into DB_PATH (default data/reviews.db)
+    python scripts/seed_demo.py              # seed into the demo user's workspace (DATABASE_URL)
+    python scripts/seed_demo.py --all-workspaces   # split the demo data across Demo / Platform team / Data team
+    python scripts/seed_demo.py --login you@example.com   # seed into your active workspace (prompts for password)
     python scripts/seed_demo.py --reset      # remove previously seeded demo reviews first
     python scripts/seed_demo.py --remove     # only remove the demo reviews
     python scripts/seed_demo.py --use-ai     # scope with the AI provider configured in Settings
 
-Only reviews whose titles match the demo set are touched; your own reviews are left alone.
+Only reviews in that workspace whose titles match the demo set are touched; your own reviews are left alone.
 """
 from __future__ import annotations
 
 import argparse
+import getpass
 import random
 import sys
 from datetime import date, datetime, timedelta, timezone
@@ -26,7 +29,8 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 import app.api as api  # noqa: E402
 from app import db  # noqa: E402
-from app.config import DB_PATH  # noqa: E402
+from app.cli import DEMO_WORKSPACES  # noqa: E402
+from app.config import DEMO_USER_ENABLED  # noqa: E402
 from app.main import app  # noqa: E402
 
 TODAY = date.today()
@@ -319,13 +323,77 @@ DEMO = [
     },
 ]
 
-DEMO_TITLES = [d["body"]["title"] for d in DEMO]
+# --all-workspaces: which demo reviews go where, plus a linked threat model (with code) and a treated risk each.
+WORKSPACE_REVIEWS = {
+    "Demo workspace": ["Customer self-service portal", "Migrate HR payroll to Workday SaaS",
+                       "Mobile app push notifications via Firebase"],
+    "Platform team": ["Containerise legacy claims portal on AKS", "Payments microservice on GKE",
+                      "GitHub Actions OIDC deployment pipeline", "Upgrade EKS clusters to 1.31"],
+    "Data team": ["Internal RAG chatbot on Azure OpenAI", "Claims analytics data lake on S3",
+                  "Share claims data with marketing agency via Snowflake"],
+}
+WORKSPACE_EXTRAS = {
+    "Demo workspace": {
+        "review": "Customer self-service portal",
+        "threat_model": {"title": "Customer portal API", "tech_stack": "AWS Lambda, API Gateway, Python",
+                         "exposure": "public", "description": "Lambda handlers behind API Gateway serving the "
+                         "customer portal: statements, profile updates and Stripe checkout sessions."},
+        "snippet": ("profile_handler.py", "python",
+                    "import json, os\nimport boto3\n\nTABLE = boto3.resource('dynamodb').Table(os.environ['TABLE'])\n\n"
+                    "def handler(event, context):\n    body = json.loads(event['body'])\n"
+                    "    customer_id = event['queryStringParameters']['customer_id']  # not taken from the JWT\n"
+                    "    TABLE.update_item(Key={'id': customer_id}, UpdateExpression='SET email = :e',\n"
+                    "                      ExpressionAttributeValues={':e': body['email']})\n"
+                    "    return {'statusCode': 200, 'body': json.dumps({'ok': True})}\n"),
+        "risk": {"title": "Customer can update another customer's profile",
+                 "risk": "There is a risk that the profile API trusts a customer_id query parameter instead of the "
+                         "authenticated identity, allowing account takeover via email change.",
+                 "likelihood": "likely", "impact": "major", "treatment": "mitigate"},
+        "controls": ["M-API-AUTH", "M-INPUT-VALIDATION"],
+    },
+    "Platform team": {
+        "review": "GitHub Actions OIDC deployment pipeline",
+        "threat_model": {"title": "Deployment pipeline", "tech_stack": "GitHub Actions, AWS IAM OIDC, Terraform",
+                         "exposure": "internal", "description": "Reusable GitHub Actions workflow that assumes an "
+                         "AWS role via OIDC and applies Terraform to production accounts."},
+        "snippet": ("deploy.yml", "yaml",
+                    "on: [push, pull_request]\npermissions:\n  id-token: write\n  contents: read\njobs:\n"
+                    "  deploy:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n"
+                    "      - uses: aws-actions/configure-aws-credentials@v4\n        with:\n"
+                    "          role-to-assume: arn:aws:iam::123456789012:role/deploy\n          aws-region: eu-west-2\n"
+                    "      - run: terraform init && terraform apply -auto-approve\n"),
+        "risk": {"title": "Pull requests can deploy to production",
+                 "risk": "There is a risk that the OIDC trust policy accepts any ref, so a workflow triggered from a "
+                         "pull request branch can assume the production deploy role.",
+                 "likelihood": "possible", "impact": "severe", "treatment": "mitigate"},
+        "controls": ["M-CICD-HARDENING", "M-CHANGE-MGMT"],
+    },
+    "Data team": {
+        "review": "Claims analytics data lake on S3",
+        "threat_model": {"title": "Claims data lake ingestion", "tech_stack": "AWS S3, Glue, Athena, Python",
+                         "exposure": "internal", "description": "Nightly Glue jobs land claims extracts in S3 and "
+                         "expose curated tables to analysts through Athena."},
+        "snippet": ("ingest_claims.py", "python",
+                    "import boto3, pandas as pd\n\ns3 = boto3.client('s3')\n\ndef run(date):\n"
+                    "    df = pd.read_csv(f's3://claims-raw/{date}.csv')\n"
+                    "    df.to_parquet(f's3://claims-curated/{date}.parquet')  # includes NHS number and DOB\n"
+                    "    s3.put_bucket_acl(Bucket='claims-curated', ACL='authenticated-read')\n"),
+        "risk": {"title": "Curated claims data readable by any AWS account",
+                 "risk": "There is a risk that the authenticated-read ACL on the curated bucket exposes special "
+                         "category health data to any authenticated AWS principal.",
+                 "likelihood": "possible", "impact": "severe", "treatment": "mitigate"},
+        "controls": ["M-NET-SEGMENTATION", "M-ENCRYPT-REST-CMK", "M-DLP"],
+    },
+}
+assert set(WORKSPACE_REVIEWS) == set(DEMO_WORKSPACES) == set(WORKSPACE_EXTRAS)
+
+DEMO_TITLES = [d["body"]["title"] for d in DEMO] + [x["threat_model"]["title"] for x in WORKSPACE_EXTRAS.values()]
 
 
 def remove_demo() -> int:
     with db.tx() as conn:
-        n = conn.execute(f"DELETE FROM reviews WHERE title IN ({','.join('?' * len(DEMO_TITLES))})",
-                         DEMO_TITLES).rowcount
+        n = conn.execute(f"DELETE FROM reviews WHERE workspace_id = %s AND title IN "
+                         f"({','.join(['%s'] * len(DEMO_TITLES))})", [db.workspace_id(), *DEMO_TITLES]).rowcount
     return n
 
 
@@ -335,15 +403,15 @@ def backdate(review_id: int, created_days: float, updated_days: float) -> None:
     updated = now - timedelta(days=updated_days)
     iso = lambda d: d.isoformat(timespec="seconds")  # noqa: E731
     with db.tx() as conn:
-        conn.execute("UPDATE reviews SET created_at = ?, updated_at = ? WHERE id = ?",
+        conn.execute("UPDATE reviews SET created_at = %s, updated_at = %s WHERE id = %s",
                      (iso(created), iso(updated), review_id))
-        conn.execute("UPDATE review_requirements SET updated_at = ? WHERE review_id = ?", (iso(updated), review_id))
-        conn.execute("UPDATE review_checks SET updated_at = ? WHERE review_id = ?", (iso(updated), review_id))
-        ids = [r[0] for r in conn.execute("SELECT id FROM activity WHERE review_id = ? ORDER BY id", (review_id,))]
+        conn.execute("UPDATE items SET updated_at = %s WHERE review_id = %s", (iso(updated), review_id))
+        conn.execute("UPDATE review_checks SET updated_at = %s WHERE review_id = %s", (iso(updated), review_id))
+        ids = [r[0] for r in conn.execute("SELECT id FROM activity WHERE review_id = %s ORDER BY id", (review_id,))]
         span = updated - created
         for i, aid in enumerate(ids):
             frac = i / (len(ids) - 1) if len(ids) > 1 else 0
-            conn.execute("UPDATE activity SET ts = ? WHERE id = ?", (iso(created + span * frac), aid))
+            conn.execute("UPDATE activity SET ts = %s WHERE id = %s", (iso(created + span * frac), aid))
 
 
 def seed(client: TestClient, spec: dict, rng: random.Random) -> dict:
@@ -387,35 +455,90 @@ def seed(client: TestClient, spec: dict, rng: random.Random) -> dict:
     return client.get(f"/api/reviews/{rid}").json()
 
 
+def seed_extras(client: TestClient, extras: dict, review_id: int) -> str:
+    """A threat model with a code snippet linked to the review, and a treated risk with library controls."""
+    tm = client.post("/api/threat-models", json=extras["threat_model"])
+    tm.raise_for_status()
+    tm_id = tm.json()["id"]
+    name, language, code = extras["snippet"]
+    client.post(f"/api/reviews/{tm_id}/code", data={"snippet": code, "snippet_name": name,
+                                                    "language": language}).raise_for_status()
+    client.post(f"/api/reviews/{review_id}/threat-models", json={"threat_model_id": tm_id}).raise_for_status()
+    item = client.post(f"/api/reviews/{review_id}/items", json={"kind": "risk", **extras["risk"]})
+    item.raise_for_status()
+    for lib_id in extras["controls"]:
+        client.post(f"/api/reviews/{review_id}/items/{item.json()['item_id']}/mitigations",
+                    json={"library_id": lib_id}).raise_for_status()
+    return f"TM-{tm_id:04d}"
+
+
+def seed_workspace(client: TestClient, specs: list[dict], extras: dict | None, target: str, args,
+                   rng: random.Random) -> None:
+    if args.remove or args.reset:
+        print(f"Removed {remove_demo()} demo record(s) from {target}")
+        if args.remove:
+            return
+    with db.tx() as conn:
+        existing = {r[0]: r[1] for r in conn.execute("SELECT title, id FROM reviews WHERE workspace_id = %s",
+                                                     (db.workspace_id(),))}
+    for spec in specs:
+        title = spec["body"]["title"]
+        if title in existing:
+            print(f"  skip  {title} (already exists - use --reset to recreate)")
+            continue
+        r = seed(client, spec, rng)
+        existing[title] = r["id"]
+        done = sum(1 for x in r["requirements"] if x["status"] != "open")
+        print(f"  {r['ref']}  {r['status']:<13} {done:>3}/{len(r['requirements']):<3} reqs  "
+              f"{sum(r['check_counts'].values()):>2} checks  {title}")
+    if extras and extras["threat_model"]["title"] not in existing and extras["review"] in existing:
+        ref = seed_extras(client, extras, existing[extras["review"]])
+        print(f"  {ref}  threat model linked to '{extras['review']}', plus a risk with {len(extras['controls'])} controls")
+    print(f"Done -> {target}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--reset", action="store_true", help="delete existing demo reviews before seeding")
     ap.add_argument("--remove", action="store_true", help="only delete the demo reviews")
     ap.add_argument("--use-ai", action="store_true", help="scope with the configured AI provider")
+    ap.add_argument("--login", default="demo", help="email or username to seed as (default: demo)")
+    ap.add_argument("--all-workspaces", action="store_true",
+                    help="as demo: split the demo data across the demo workspaces created by `app.cli bootstrap`")
     args = ap.parse_args()
-
-    db.init_db()
-    if args.remove or args.reset:
-        print(f"Removed {remove_demo()} demo review(s) from {DB_PATH}")
-        if args.remove:
+    if args.all_workspaces:
+        if not DEMO_USER_ENABLED:
+            print("DEMO_USER_ENABLED is not true - skipping demo workspace data")
             return
+        args.login = "demo"
+    password = "demo" if args.login == "demo" else getpass.getpass(f"Password for {args.login}: ")
+
     if not args.use_ai:
         api.build_llm = lambda _settings: None  # offline heuristic scoping: fast, free, deterministic
 
-    with db.tx() as conn:
-        existing = {r[0] for r in conn.execute("SELECT title FROM reviews")}
     rng = random.Random(42)
     with TestClient(app) as client:
-        for spec in DEMO:
-            title = spec["body"]["title"]
-            if title in existing:
-                print(f"  skip  {title} (already exists - use --reset to recreate)")
+        r = client.post("/api/auth/login", json={"login": args.login, "password": password})
+        if r.status_code != 200:
+            sys.exit(f"Sign-in failed for {args.login}: {r.text}")
+        me = r.json()
+        if not me["workspace"] or me["workspace"]["role"] not in ("admin", "write"):
+            sys.exit(f"{args.login} needs write access to a workspace")
+        client.headers["X-CSRF-Token"] = me["csrf_token"]
+        if not args.all_workspaces:
+            db.set_workspace(me["workspace"]["id"])
+            seed_workspace(client, DEMO, None, f"workspace '{me['workspace']['name']}'", args, rng)
+            return
+        owned = {w["name"]: w["id"] for w in me["workspaces"] if w["role"] == "admin"}
+        by_title = {d["body"]["title"]: d for d in DEMO}
+        for ws_name, titles in WORKSPACE_REVIEWS.items():
+            if ws_name not in owned:
+                print(f"  skip  workspace '{ws_name}' (not found - run `python -m app.cli bootstrap`)")
                 continue
-            r = seed(client, spec, rng)
-            done = sum(1 for x in r["requirements"] if x["status"] != "open")
-            print(f"  {r['ref']}  {r['status']:<13} {done:>3}/{len(r['requirements']):<3} reqs  "
-                  f"{sum(r['check_counts'].values()):>2} checks  {title}")
-    print(f"Done -> {DB_PATH}")
+            client.post("/api/auth/workspace", json={"workspace_id": owned[ws_name]}).raise_for_status()
+            db.set_workspace(owned[ws_name])
+            seed_workspace(client, [by_title[t] for t in titles], WORKSPACE_EXTRAS[ws_name],
+                           f"workspace '{ws_name}'", args, rng)
 
 
 if __name__ == "__main__":

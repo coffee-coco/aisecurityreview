@@ -1,0 +1,15 @@
+--- a/terraform/aws/ecr.tf
++++ b/terraform/aws/ecr.tf
+@@ -1,6 +1,6 @@
+ resource aws_ecr_repository "repository" {
+   name                 = "${local.resource_prefix.value}-repository"
+-  image_tag_mutability = "MUTABLE"
++  image_tag_mutability = "IMMUTABLE"
+ 
+ 
+   tags = merge({
+@@ -32,4 +32,4 @@
+     docker push ${local.docker_image}
+     BASH
+   }
+-}+}

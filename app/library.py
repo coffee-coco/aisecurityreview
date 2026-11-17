@@ -73,6 +73,14 @@ def explain(hits: list[str]) -> str:
     return "Matched: " + ", ".join(dict.fromkeys(nice))
 
 
+def applicable_mitigations(review: dict) -> dict[str, dict]:
+    """Library controls that may be suggested for this review: those without a ``when`` condition, plus those whose
+    condition matches the review profile (e.g. LLM guardrails only for reviews that use AI)."""
+    tokens, text = profile_tokens(review), profile_text(review)
+    return {k: m for k, m in mitigation_library().items()
+            if not m.get("when") or condition_matches(m["when"], tokens, text)[0]}
+
+
 def library_risks(review: dict) -> list[dict]:
     """All library risks that apply to this review profile, in library order."""
     tokens, text = profile_tokens(review), profile_text(review)

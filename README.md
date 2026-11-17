@@ -10,7 +10,49 @@ NIST CSF 2.0 subcategory  (the review question, e.g. PR.DS-01)
        └─ Checkov checks  (IaC policies that implement those controls, e.g. CKV_AWS_19)
 ```
 
-## Quick start
+## Quick start (Docker)
+
+```bash
+cp .env.example .env        # set POSTGRES_PASSWORD and APP_SECRET_KEY
+docker compose up -d --build
+```
+
+Open http://127.0.0.1:8000 and sign in, or register. With `DEMO_USER_ENABLED=true` these logins exist (password =
+username); `DEMO_SEED_DATA=true` also fills each workspace with its own sample reviews, a threat model with code,
+and a treated risk with controls:
+
+| Login | Demo workspace | Platform team | Data team |
+|---|---|---|---|
+| `demo` | admin | admin | admin |
+| `alice` | write | write | - |
+| `bob` | write | - | write |
+| `carol` | read | read | read |
+
+| Service | Role |
+|---|---|
+| `postgres` | Database (named volume `pgdata`) |
+| `redis` | Celery broker |
+| `migrate` | Runs `alembic upgrade head` and creates the demo user, then exits |
+| `api` | FastAPI + SPA (uvicorn, `API_WORKERS` processes) |
+| `worker` | Celery workers running background jobs (document analysis, code review, fix generation, threat modelling) |
+| `autoscaler` | Scales `worker` containers with load |
+
+Uploads live in the shared `uploads` volume, so the API and every worker see the same files.
+
+**Job queue.** The **Jobs** page (sidebar; badge = active jobs) lists every background job in the workspace with
+progress, AI calls and tokens used, who started it and how long it has run. **Cancel** stops a job within a few
+seconds, including AI calls in flight, and work already saved is kept. **Purge** (admins) cancels every queued and running job.
+Cancelled jobs are never resumed, even when a worker restarts. As a safety net, a job that reaches `JOB_MAX_AI_CALLS`
+AI calls (default 300) is stopped. Generating more than 10 fixes at once asks for confirmation first.
+
+**Autoscaling.** Every `AUTOSCALE_POLL_SECONDS` the autoscaler reads the Redis queue length plus the jobs workers have
+reserved, and runs `ceil(load / WORKER_CONCURRENCY)` worker containers, between `MIN_WORKERS` and `MAX_WORKERS`.
+It scales out straight away, and scales in only after demand has stayed lower for `AUTOSCALE_SCALE_DOWN_DELAY` seconds.
+A worker that is scaled in finishes its running job first (`WORKER_STOP_GRACE`). Jobs use late acknowledgement,
+so a job lost with its worker is run again. The autoscaler calls `docker compose` through the mounted Docker socket.
+That gives it root-level access to the host, so only run it on hosts you control.
+
+## Local development
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
@@ -19,14 +61,58 @@ pip install -r requirements.txt
 # Build data/catalog.json (downloads NIST sources once into data/raw/, parses Checkov statically)
 python scripts/build_catalog.py            # --refresh to re-download, --checkov-path to point elsewhere
 
-python main.py                             # http://127.0.0.1:8000  (--port, --host, --reload)
+docker compose up -d postgres redis        # set DATABASE_URL / CELERY_BROKER_URL in .env to the localhost ports
+python main.py                             # migrates, then http://127.0.0.1:8000  (--port, --host, --reload)
+celery -A app.worker worker --loglevel=INFO   # background jobs
 ```
 
-The SQLite database (`data/reviews.db`) is created the first time you run the app.
+Optional demo data: `python scripts/seed_demo.py` adds 10 realistic reviews covering every status to the demo user's
+workspace (`--login you@example.com` to seed your own); `--all-workspaces` splits them across the three demo
+workspaces instead. Use `--reset` to recreate them, `--remove` to delete them, and
+`--use-ai` to scope them with the workspace's configured provider. Only the demo reviews are touched.
 
-Optional demo data: `python scripts/seed_demo.py` adds 10 realistic reviews covering every status.
-Use `--reset` to recreate them, `--remove` to delete them, and `--use-ai` to scope them with your configured provider.
-Only the demo reviews are touched.
+**Importing a SQLite database from an earlier version:** run this against a freshly migrated database. Review, item,
+control and document ids are kept, so the import stops if any of them already exist.
+
+```bash
+docker compose run --rm -v "$PWD/data:/import:ro" api \
+  python scripts/import_sqlite.py --sqlite /import/reviews.db --uploads-src /import/uploads --user demo
+```
+
+## Accounts, workspaces and access
+
+- **Registration**: anyone can register with an email and password (turn this off with `ALLOW_REGISTRATION=false`).
+  No email is sent. The 6-digit verification code is printed to the API console (`docker compose logs -f api`).
+  Registering creates a workspace, and the new user is its admin.
+- **Workspaces**: reviews, threat models, uploads, check mappings, AI settings, GitLab credentials and the AI cache all
+  belong to a workspace. Only the built-in catalog is shared. Users can belong to several workspaces and switch
+  between them from the sidebar.
+- **Roles (RBAC)** per workspace: `read` (view only), `write` (create and edit), `admin` (also manages members,
+  AI provider keys, GitLab credentials and every API key in the workspace).
+- **Passwords and API keys** are hashed with argon2id. Accounts lock for `LOCKOUT_MINUTES` after
+  `MAX_LOGIN_FAILURES` failed sign-ins.
+- **Browser sessions** use an HttpOnly cookie with a server-side session, plus a CSRF token on changes.
+  Set `COOKIE_SECURE=true` behind HTTPS.
+- **Workspace secrets** (AI keys, GitLab token) are encrypted at rest with a key derived from `APP_SECRET_KEY`.
+  They are only used server-side (AI and git calls run in the API and the workers). The browser only ever sees "set" and a masked hint.
+- **Browser hardening**: every response sends `nosniff`, `X-Frame-Options: DENY`, a referrer policy and a permissions policy.
+  The UI has a strict Content Security Policy (scripts only from the app and the Mermaid CDN). API responses use a
+  `default-src 'none'` policy with `no-store`. HSTS is added when `COOKIE_SECURE=true`. Uploaded documents that can carry
+  script (HTML, SVG, XML…) are downloaded, never rendered in the app's origin.
+- **Operator CLI**: `python -m app.cli create-user --email you@example.com` creates a verified admin.
+  `python -m app.cli migrate` and `python -m app.cli bootstrap` run migrations and create the demo users and workspaces.
+
+## API
+
+Everything the UI does goes through the REST API under `/api`. Interactive docs are at `/docs` (`ENABLE_DOCS`).
+Create an API key in **Settings → API keys** and send it as a bearer token:
+
+```bash
+curl -H "Authorization: Bearer sntl_..." http://127.0.0.1:8000/api/reviews
+```
+
+A key belongs to one workspace. Its role is the lower of the role chosen when it was created and its owner's current
+role in that workspace. Background jobs return a `job_id`; poll `GET /api/jobs/{id}`. `GET /api/health` needs no auth.
 
 ## Workflow
 
@@ -39,9 +125,20 @@ Only the demo reviews are touched.
 4. **Decide**: the review moves `new → in_progress → awaiting_info → approved / rejected` (you can drag cards on the board).
    **Export** a Markdown report.
 
+**Devil's advocate and AI review.** Content boxes (line items, controls, code findings, threat-model threats,
+mitigations, test cases, DREAD rationales, attack-tree nodes, design summary, review / threat-model details) carry a
+selection checkbox and a small red devil. Click the devil to argue an entry is wrong or not aligned with the
+application. The AI judges the challenge against the application's evidence (upheld / partly upheld / rejected /
+inconclusive), then you can apply its corrected text, write your own or remove the entry. Select one or many boxes to
+run an **AI review** (a constructive check for accuracy and specificity) or a **devil's advocate** pass over all of them as a
+background job (`AI_BATCH_CONCURRENCY` AI calls in parallel), then apply, override or remove per entry. The review header's
+**Devil's advocate** button does this for a whole review: choose which risks, recommendations, controls, questions
+and details to challenge (up to 300 entries per run). Every outcome is
+recorded in the activity log. Requires the `write` role and an AI provider; overriding and removing work without AI.
+
 ## AI providers
 
-Set these in **Settings** (stored in SQLite) or with environment variables / `.env` (see `.env.example`):
+Each workspace sets its provider, model and API key in **Settings**; keys are stored encrypted in Postgres. `AI_PROVIDER`, `AI_MODEL` and the base URLs in `.env` only set the defaults for new workspaces:
 
 | Provider | Notes |
 |---|---|
@@ -72,17 +169,19 @@ A check matches when one of its rule-derived controls is in the spec's `controls
 Explicit ids and rule-derived matches are *strong*; category-only matches without an `include` filter are *related*. Every link carries a human-readable reason.
 Requirements without a spec (e.g. other frameworks) get no automatic checks.
 
-Reviewers can correct links on the **Mappings** page (`#/mappings`, applies to all reviews, with YAML export / import) or inline under a requirement in a review (this review only, or all reviews).
+Reviewers can correct links on the **Mappings** page (`#/mappings`, applies to all reviews in the workspace, with YAML export / import) or inline under a requirement in a review (this review only, or all reviews in the workspace).
 These overrides are stored in the `check_links` table and merged in order: automatic → all-reviews include/exclude → review include/exclude.
 A review's platforms filter the checks shown; if none of them match a Checkov platform, all platforms are shown instead.
 
 ## Layout
 
 ```
-app/            FastAPI backend (api, catalog, db, report, ai/providers, ai/scoping)
+app/            FastAPI backend (api, auth, catalog, db, jobs, worker, report, ai/providers, ai/scoping)
+migrations/     Alembic migrations (Postgres schema)
 static/         Vanilla JS SPA (hash router, views/) + CSS design system
 catalog/        Hand-maintained YAML (questions, Checkov→NIST rules, requirement→check links)
-scripts/        Catalog builder
-data/           catalog.json (generated), raw/ (downloaded sources), reviews.db
+scripts/        Catalog builder, demo seeding, SQLite import
+deploy/         Worker autoscaler image
+data/           catalog.json (generated), raw/ (downloaded sources), uploads/ (local runs)
 references/     Checkov source tree used for parsing
 ```

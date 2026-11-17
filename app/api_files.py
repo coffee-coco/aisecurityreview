@@ -7,6 +7,7 @@ import re
 import shutil
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlparse
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
@@ -28,6 +29,8 @@ from .threat.export import render_export
 
 router = APIRouter(prefix="/api")
 TEXT_SUFFIX = ".extracted.txt"
+INLINE_SAFE = {"image/png", "image/jpeg", "image/gif", "image/webp", "image/bmp", "application/pdf", "text/plain",
+               "text/markdown", "text/csv", "text/yaml"}
 
 
 def _safe_name(name: str) -> str:
@@ -52,12 +55,12 @@ def _insert_doc(conn, review_id: int, kind: str, filename: str, mime: str, size:
                 meta: dict) -> int:
     return conn.execute(
         "INSERT INTO documents (review_id, kind, filename, mime, size, sha256, path, meta, created_at) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-        (review_id, kind, filename, mime, size, sha, str(path), json.dumps(meta), db.now())).lastrowid
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
+        (review_id, kind, filename, mime, size, sha, str(path), json.dumps(meta), db.now())).fetchone()["id"]
 
 
 def _docs(conn, review_id: int, kinds: tuple[str, ...]) -> list[dict]:
-    q = f"SELECT * FROM documents WHERE review_id = ? AND kind IN ({','.join('?' * len(kinds))}) ORDER BY id"
+    q = f"SELECT * FROM documents WHERE review_id = %s AND kind IN ({','.join(['%s'] * len(kinds))}) ORDER BY id"
     out = []
     for r in conn.execute(q, (review_id, *kinds)):
         d = dict(r)
@@ -96,7 +99,7 @@ async def upload_documents(review_id: int, files: list[UploadFile] = File(...)):
         sha = hashlib.sha256(data).hexdigest()
         name = _safe_name(f.filename)
         with db.tx() as conn:
-            dup = conn.execute("SELECT id FROM documents WHERE review_id = ? AND sha256 = ? AND kind != 'code'",
+            dup = conn.execute("SELECT id FROM documents WHERE review_id = %s AND sha256 = %s AND kind != 'code'",
                                (review_id, sha)).fetchone()
         if dup:
             rejected.append(f"{name}: already uploaded")
@@ -117,10 +120,10 @@ async def upload_documents(review_id: int, files: list[UploadFile] = File(...)):
 @router.delete("/reviews/{review_id}/documents/{doc_id}")
 def delete_document(review_id: int, doc_id: int):
     with db.tx() as conn:
-        row = conn.execute("SELECT * FROM documents WHERE id = ? AND review_id = ?", (doc_id, review_id)).fetchone()
+        row = conn.execute("SELECT * FROM documents WHERE id = %s AND review_id = %s", (doc_id, review_id)).fetchone()
         if not row:
             raise HTTPException(404, "Document not found")
-        conn.execute("DELETE FROM documents WHERE id = ?", (doc_id,))
+        conn.execute("DELETE FROM documents WHERE id = %s", (doc_id,))
         db.log_activity(conn, review_id, "document", f"Removed {row['filename']}")
     p = Path(row["path"])
     if p.resolve().is_relative_to(UPLOAD_DIR.resolve()):
@@ -134,7 +137,7 @@ def delete_document(review_id: int, doc_id: int):
 
 def _doc(review_id: int, doc_id: int) -> dict:
     with db.tx() as conn:
-        row = conn.execute("SELECT * FROM documents WHERE id = ? AND review_id = ?", (doc_id, review_id)).fetchone()
+        row = conn.execute("SELECT * FROM documents WHERE id = %s AND review_id = %s", (doc_id, review_id)).fetchone()
     if not row:
         raise HTTPException(404, "Document not found")
     return dict(row)
@@ -145,8 +148,10 @@ def document_raw(review_id: int, doc_id: int):
     d = _doc(review_id, doc_id)
     if d["kind"] == "code":
         raise HTTPException(400, "Use the code file viewer")
-    return FileResponse(d["path"], media_type=d["mime"], filename=d["filename"],
-                        content_disposition_type="inline")
+    # Only passive formats open in the browser; anything that can carry script (HTML, SVG, XML...) downloads.
+    inline = d["mime"] in INLINE_SAFE
+    return FileResponse(d["path"], media_type=d["mime"] if inline else "application/octet-stream",
+                        filename=d["filename"], content_disposition_type="inline" if inline else "attachment")
 
 
 @router.get("/reviews/{review_id}/documents/{doc_id}/text", response_class=PlainTextResponse)
@@ -184,24 +189,26 @@ def _load_doc_inputs(review_id: int) -> list[dict]:
 async def design_analyze(review_id: int):
     with db.tx() as conn:
         _get_review(conn, review_id)
-    llm = _llm()
+    _llm()
+    return {"job_id": jobs.start_job(review_id, "design", "design", review_id=review_id)}
 
-    async def work(progress):
-        docs = _load_doc_inputs(review_id)
-        await progress(0.15, f"Reading {len(docs)} document(s)…")
-        with db.tx() as conn:
-            review = _get_review(conn, review_id)
-        await progress(0.3, "AI building design understanding…" if llm else "Detecting design characteristics…")
-        design = await analyze_design(review, docs, get_catalog(), llm)
-        design["analyzed_at"] = db.now()
-        with db.tx() as conn:
-            conn.execute("UPDATE reviews SET design = ?, updated_at = ? WHERE id = ?",
-                         (json.dumps(design), db.now(), review_id))
-            db.log_activity(conn, review_id, "design", f"Design analysed from {len(docs)} document(s) via "
-                            f"{design.get('provider')}")
-        return {"design": design}
 
-    return {"job_id": jobs.start_job(review_id, "design", work)}
+@jobs.handler("design")
+async def design_job(progress, review_id: int):
+    llm = build_llm(db.get_settings())
+    docs = _load_doc_inputs(review_id)
+    await progress(0.15, f"Reading {len(docs)} document(s)…")
+    with db.tx() as conn:
+        review = _get_review(conn, review_id)
+    await progress(0.3, "AI building design understanding…" if llm else "Detecting design characteristics…")
+    design = await analyze_design(review, docs, get_catalog(), llm)
+    design["analyzed_at"] = db.now()
+    with db.tx() as conn:
+        conn.execute("UPDATE reviews SET design = %s, updated_at = %s WHERE id = %s",
+                     (json.dumps(design), db.now(), review_id))
+        db.log_activity(conn, review_id, "design", f"Design analysed from {len(docs)} document(s) via "
+                        f"{design.get('provider')}")
+    return {"design": design}
 
 
 class DesignApply(BaseModel):
@@ -243,9 +250,9 @@ async def design_apply(review_id: int, body: DesignApply):
     up = sync_profile(up, review)
     if up:
         with db.tx() as conn:
-            sets = ", ".join(f"{k} = ?" for k in up)
+            sets = ", ".join(f"{k} = %s" for k in up)
             vals = [json.dumps(v) if k in LIST_COLUMNS else int(v) if isinstance(v, bool) else v for k, v in up.items()]
-            conn.execute(f"UPDATE reviews SET {sets}, updated_at = ? WHERE id = ?", [*vals, db.now(), review_id])
+            conn.execute(f"UPDATE reviews SET {sets}, updated_at = %s WHERE id = %s", [*vals, db.now(), review_id])
             db.log_activity(conn, review_id, "profile", f"Applied {body.source} analysis: "
                             + ", ".join(k.replace("_", " ") for k in up if k not in ("internet_facing", "personal_data")))
     if body.rescope:
@@ -274,11 +281,11 @@ async def upload_code(review_id: int, files: list[UploadFile] = File(default=[])
                 stats = extract_archive(name, data, dest)
             except UnpackError as e:
                 with db.tx() as conn:
-                    conn.execute("DELETE FROM documents WHERE id = ?", (did,))
+                    conn.execute("DELETE FROM documents WHERE id = %s", (did,))
                 rejected.append(f"{name}: {e}")
                 continue
             with db.tx() as conn:
-                conn.execute("UPDATE documents SET path = ?, meta = ? WHERE id = ?",
+                conn.execute("UPDATE documents SET path = %s, meta = %s WHERE id = %s",
                              (str(dest), json.dumps({"type": "archive", **stats}), did))
                 db.log_activity(conn, review_id, "code", f"Uploaded {name} ({stats['files']} files)")
             added.append(did)
@@ -294,7 +301,7 @@ async def upload_code(review_id: int, files: list[UploadFile] = File(default=[])
         for name, data in loose:
             save_file(name, data, dest)
         with db.tx() as conn:
-            conn.execute("UPDATE documents SET path = ?, meta = ? WHERE id = ?",
+            conn.execute("UPDATE documents SET path = %s, meta = %s WHERE id = %s",
                          (str(dest), json.dumps({"type": "files", "files": len(loose)}), did))
             db.log_activity(conn, review_id, "code", f"Uploaded {label}")
         added.append(did)
@@ -308,7 +315,7 @@ async def upload_code(review_id: int, files: list[UploadFile] = File(default=[])
         dest = _review_dir(review_id, "code") / str(did)
         save_file(fname, data, dest)
         with db.tx() as conn:
-            conn.execute("UPDATE documents SET path = ? WHERE id = ?", (str(dest), did))
+            conn.execute("UPDATE documents SET path = %s WHERE id = %s", (str(dest), did))
             db.log_activity(conn, review_id, "code", f"Added snippet {fname}")
         added.append(did)
     if not added and not rejected:
@@ -319,7 +326,18 @@ async def upload_code(review_id: int, files: list[UploadFile] = File(default=[])
 class GitLinkBody(BaseModel):
     url: str
     ref: str = ""
-    token: str = ""  # used for this clone only - never stored or logged
+    token: str = ""  # used for this clone only - never stored or logged; blank = workspace GitLab token
+
+
+def _git_credentials(clean_url: str, token: str) -> tuple[str | None, str | None]:
+    """(token, username) for a clone: the request's token, else the workspace GitLab token when the host matches."""
+    if token:
+        return token, None
+    s = db.get_settings()
+    base = urlparse(s.get("gitlab_base_url") or "")
+    if s.get("gitlab_token") and base.scheme == "https" and base.netloc and urlparse(clean_url).netloc == base.netloc:
+        return s["gitlab_token"], s.get("gitlab_username") or "oauth2"
+    return None, None
 
 
 @router.post("/reviews/{review_id}/code/git", status_code=201)
@@ -336,17 +354,18 @@ async def link_git_repo(review_id: int, body: GitLinkBody):
         did = _insert_doc(conn, review_id, "code", "pending", "application/x-git", 0, "", Path("pending"),
                           {"type": "git", "url": clean})
     dest = _review_dir(review_id, "code") / str(did)
+    token, username = _git_credentials(clean, body.token)
     try:
-        meta = await clone_repo(clean, dest, body.ref, body.token or None)
+        meta = await clone_repo(clean, dest, body.ref, token, username)
     except (GitError, UnpackError) as e:
         with db.tx() as conn:
-            conn.execute("DELETE FROM documents WHERE id = ?", (did,))
+            conn.execute("DELETE FROM documents WHERE id = %s", (did,))
         raise HTTPException(422, str(e))
     with db.tx() as conn:
         for d in old:
             shutil.rmtree(d["path"], ignore_errors=True)
-            conn.execute("DELETE FROM documents WHERE id = ?", (d["id"],))
-        conn.execute("UPDATE documents SET filename = ?, size = ?, sha256 = ?, path = ?, meta = ? WHERE id = ?",
+            conn.execute("DELETE FROM documents WHERE id = %s", (d["id"],))
+        conn.execute("UPDATE documents SET filename = %s, size = %s, sha256 = %s, path = %s, meta = %s WHERE id = %s",
                      (meta["name"], meta["bytes"], meta["commit"], str(dest),
                       json.dumps({"type": "git", **{k: v for k, v in meta.items() if k != "name"}}), did))
         db.log_activity(conn, review_id, "code", f"Linked {clean} @ {meta['ref']} ({meta['commit'][:8]}, "
@@ -376,34 +395,38 @@ class CodeReviewBody(BaseModel):
 async def code_review(review_id: int, body: CodeReviewBody):
     with db.tx() as conn:
         _get_code_owner(conn, review_id)
-    roots = _code_roots(review_id)
-    if not roots:
+    if not _code_roots(review_id):
         raise HTTPException(400, "Upload code first")
-    llm = _llm() if body.ai else None
+    if body.ai:
+        _llm()
+    return {"job_id": jobs.start_job(review_id, "code_review", "code_review", review_id=review_id, ai=body.ai,
+                                     checkov=body.checkov)}
+
+
+@jobs.handler("code_review")
+async def code_review_job(progress, review_id: int, ai: bool, checkov: bool):
+    roots = _code_roots(review_id)
+    llm = build_llm(db.get_settings()) if ai else None
     cat = get_catalog()
-
-    async def work(progress):
-        with db.tx() as conn:
-            review = _get_review(conn, review_id)
-        result = await review_codebase(roots, cat, llm, profile_summary(review), progress,
-                                       use_ai=body.ai, use_checkov=body.checkov)
-        result["ran_at"] = db.now()
-        result["sources"] = [label for label, _ in roots]
-        ck = result.get("checkov") or {}
-        with db.tx() as conn:
-            ts = db.now()
-            for rid in threat_models.linking_reviews(conn, review_id):
-                threat_models.apply_checkov(conn, rid, result, cat.checks_by_id)
-            conn.execute("UPDATE reviews SET code_review = ?, updated_at = ? WHERE id = ?",
-                         (json.dumps(result), ts, review_id))
-            n = len(result["findings"])
-            db.log_activity(conn, review_id, "code", f"Code review: {result['inventory']['files']} files, {n} "
-                            f"finding{'s' if n != 1 else ''} via {result['provider']}"
-                            + (f", Checkov {ck.get('failed', 0)} failed / {ck.get('passed', 0)} passed"
-                               if ck.get("ran") else ""))
-        return {"findings": len(result["findings"])}
-
-    return {"job_id": jobs.start_job(review_id, "code_review", work)}
+    with db.tx() as conn:
+        review = _get_review(conn, review_id)
+    result = await review_codebase(roots, cat, llm, profile_summary(review), progress,
+                                   use_ai=ai, use_checkov=checkov)
+    result["ran_at"] = db.now()
+    result["sources"] = [label for label, _ in roots]
+    ck = result.get("checkov") or {}
+    with db.tx() as conn:
+        ts = db.now()
+        for rid in threat_models.linking_reviews(conn, review_id):
+            threat_models.apply_checkov(conn, rid, result, cat.checks_by_id)
+        conn.execute("UPDATE reviews SET code_review = %s, updated_at = %s WHERE id = %s",
+                     (json.dumps(result), ts, review_id))
+        n = len(result["findings"])
+        db.log_activity(conn, review_id, "code", f"Code review: {result['inventory']['files']} files, {n} "
+                        f"finding{'s' if n != 1 else ''} via {result['provider']}"
+                        + (f", Checkov {ck.get('failed', 0)} failed / {ck.get('passed', 0)} passed"
+                           if ck.get("ran") else ""))
+    return {"findings": len(result["findings"])}
 
 
 @router.get("/reviews/{review_id}/code/files")

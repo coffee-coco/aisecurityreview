@@ -3,6 +3,7 @@ export. Promotion into a security review's registers lives in ``api_threat_model
 from __future__ import annotations
 
 import asyncio
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -13,7 +14,8 @@ from pydantic import BaseModel
 from . import db, jobs
 from .ai.providers import Attachment, ProviderError, build_llm
 from .api import _get_review
-from .api_files import _docs, _read_limited
+from .api_files import _docs, _read_limited, _review_dir
+from .config import UPLOAD_DIR
 from .items import load_mitigations
 from .threat import DOWNSTREAM, KINDS, store
 from .threat.context import build_context, detect_app_type
@@ -113,35 +115,56 @@ def export_threats(review_id: int):
 async def generate_all(review_id: int, body: Optional[GenerateBody] = None):
     body = body or GenerateBody()
     _artifacts(review_id)
-    llm = _llm_required()
+    _llm_required()
+    return {"job_id": jobs.start_job(review_id, "threat_all", "threat_all", review_id=review_id,
+                                     instructions=body.instructions, refine=body.refine)}
 
-    async def work(progress):
-        await progress(0.03, "Reading linked source code and review context…")
-        ctx = await asyncio.to_thread(build_context, review_id, llm)
-        steps = ["threat_model", *DOWNSTREAM, "dfd"]
-        done, errors = [], {}
-        for i, kind in enumerate(steps):
-            prior = _artifacts(review_id)
-            if kind == "dfd" and (prior["dfd"] or {}).get("source") == "manual":
-                continue  # never overwrite a reviewer-edited or imported diagram
-            await progress(0.05 + 0.9 * i / len(steps), f"AI generating {LABELS[kind].lower()}…")
-            try:
-                data = await GENERATORS[kind](llm, ctx, prior, body.instructions, body.refine)
-            except (ProviderError, MissingThreatModel) as e:
-                if kind == "threat_model":
-                    raise
-                errors[kind] = str(e)
-                continue
+
+@jobs.handler("threat_all")
+async def generate_all_job(progress, review_id: int, instructions: str, refine: bool):
+    """Two parallel phases: the threat model alongside the data flow diagram (which needs no threats), then every
+    downstream artifact at once - each reads only the threats and its own previous version."""
+    llm = _llm_required()
+    await progress(0.03, "Reading linked source code and review context…")
+    ctx = await asyncio.to_thread(build_context, review_id, llm)
+    prior = _artifacts(review_id)
+    keep_dfd = (prior["dfd"] or {}).get("source") == "manual"  # never overwrite a reviewer-edited or imported diagram
+    order = ["threat_model", *DOWNSTREAM, "dfd"]
+    total = len(order) - keep_dfd
+    done, errors = [], {}
+
+    async def step(kind: str, prior: dict) -> None:
+        try:
+            data = await GENERATORS[kind](llm, ctx, prior, instructions, refine)
+        except (ProviderError, MissingThreatModel) as e:
+            if kind == "threat_model":
+                raise
+            errors[kind] = str(e)
+        else:
             with db.tx() as conn:
                 store.put_artifact(conn, review_id, kind, data, "ai", llm.label)
             done.append(kind)
-        with db.tx() as conn:
-            db.log_activity(conn, review_id, "threat", f"Threat model generated via {llm.label}: "
-                            + ", ".join(LABELS[k].lower() for k in done)
-                            + (f" ({len(errors)} failed)" if errors else ""))
-        return {"generated": done, "errors": errors}
+        finished = len(done) + len(errors)
+        await progress(0.05 + 0.9 * finished / total, f"{finished}/{total} parts finished - {LABELS[kind].lower()} "
+                                                     f"{'failed' if kind in errors else 'ready'}")
 
-    return {"job_id": jobs.start_job(review_id, "threat_all", work)}
+    async def run_all(kinds: list[str], prior: dict) -> None:
+        for res in await asyncio.gather(*(step(k, prior) for k in kinds), return_exceptions=True):
+            if isinstance(res, BaseException):
+                raise res
+
+    first = ["threat_model"] + ([] if keep_dfd else ["dfd"])
+    await progress(0.05, "AI generating the threat model" + ("" if keep_dfd else " and data flow diagram") + "…")
+    await run_all(first, prior)
+    await progress(0.05 + 0.9 * len(first) / total,
+                   f"Threats ready - generating {', '.join(LABELS[k].lower() for k in DOWNSTREAM)} in parallel…")
+    await run_all(list(DOWNSTREAM), _artifacts(review_id))
+    done.sort(key=order.index)
+    with db.tx() as conn:
+        db.log_activity(conn, review_id, "threat", f"Threat model generated via {llm.label}: "
+                        + ", ".join(LABELS[k].lower() for k in done)
+                        + (f" ({len(errors)} failed)" if errors else ""))
+    return {"generated": done, "errors": errors}
 
 
 @router.post("/reviews/{review_id}/threats/{kind}/generate")
@@ -149,23 +172,26 @@ async def generate_artifact(review_id: int, kind: str, body: Optional[GenerateBo
     _check_kind(kind)
     body = body or GenerateBody()
     prior = _artifacts(review_id)
-    llm = _llm_required()
+    _llm_required()
     if kind in DOWNSTREAM:
         try:
             require_threats(prior)
         except MissingThreatModel as e:
             raise HTTPException(400, str(e))
+    return {"job_id": jobs.start_job(review_id, f"threat_{kind}", "threat_artifact", review_id=review_id, kind=kind,
+                                     instructions=body.instructions, refine=body.refine)}
 
-    async def work(progress):
-        await progress(0.1, "Reading linked source code and review context…")
-        ctx = await asyncio.to_thread(build_context, review_id, llm)
-        await progress(0.3, f"AI {'refining' if body.refine else 'generating'} {LABELS[kind].lower()}…")
-        data = await GENERATORS[kind](llm, ctx, _artifacts(review_id), body.instructions, body.refine)
-        art = _save(review_id, kind, data, "ai", llm.label,
-                    f"{LABELS[kind]} {'refined' if body.refine else 'generated'} via {llm.label}")
-        return {"kind": kind, "artifact": art}
 
-    return {"job_id": jobs.start_job(review_id, f"threat_{kind}", work)}
+@jobs.handler("threat_artifact")
+async def generate_artifact_job(progress, review_id: int, kind: str, instructions: str, refine: bool):
+    llm = _llm_required()
+    await progress(0.1, "Reading linked source code and review context…")
+    ctx = await asyncio.to_thread(build_context, review_id, llm)
+    await progress(0.3, f"AI {'refining' if refine else 'generating'} {LABELS[kind].lower()}…")
+    data = await GENERATORS[kind](llm, ctx, _artifacts(review_id), instructions, refine)
+    art = _save(review_id, kind, data, "ai", llm.label,
+                f"{LABELS[kind]} {'refined' if refine else 'generated'} via {llm.label}")
+    return {"kind": kind, "artifact": art}
 
 
 @router.post("/reviews/{review_id}/threats/dfd/import")
@@ -181,25 +207,38 @@ async def import_dfd(review_id: int, file: UploadFile = File(...)):
             dfd = normalize_dfd(parse_drawio(raw.decode("utf-8", "replace")))
         except DiagramError as e:
             raise HTTPException(400, str(e))
+        return {"job_id": jobs.start_job(review_id, "threat_dfd", "dfd_import_drawio", review_id=review_id,
+                                         dfd=dfd, name=name)}
+    llm = _llm_required()
+    if not llm.supports("image"):
+        raise HTTPException(400, f"{llm.label} cannot read images - import a draw.io file instead")
+    path = _review_dir(review_id, "tmp") / f"{uuid.uuid4().hex}{ext}"
+    path.write_bytes(raw)
+    return {"job_id": jobs.start_job(review_id, "threat_dfd", "dfd_import_image", review_id=review_id,
+                                     path=str(path), name=name)}
 
-        async def work(progress):
-            await progress(0.5, f"Importing {name}…")
-            art = _save(review_id, "dfd", dfd, "manual", "", f"Data flow diagram imported from {name}")
-            return {"kind": "dfd", "artifact": art}
-    else:
+
+@jobs.handler("dfd_import_drawio")
+async def import_drawio_job(progress, review_id: int, dfd: dict, name: str):
+    await progress(0.5, f"Importing {name}…")
+    art = _save(review_id, "dfd", dfd, "manual", "", f"Data flow diagram imported from {name}")
+    return {"kind": "dfd", "artifact": art}
+
+
+@jobs.handler("dfd_import_image")
+async def import_image_job(progress, review_id: int, path: str, name: str):
+    p = Path(path)
+    if not p.resolve().is_relative_to(UPLOAD_DIR.resolve()):
+        raise ValueError("Image path is outside the upload directory")
+    try:
+        image = Attachment(IMAGE_TYPES[p.suffix.lower()], p.read_bytes(), name)
         llm = _llm_required()
-        if not llm.supports("image"):
-            raise HTTPException(400, f"{llm.label} cannot read images - import a draw.io file instead")
-        image = Attachment(IMAGE_TYPES[ext], raw, name)
-
-        async def work(progress):
-            await progress(0.2, f"AI reading {name}…")
-            data = await dfd_from_image(llm, image)
-            art = _save(review_id, "dfd", data, "ai", llm.label,
-                        f"Data flow diagram imported from {name} via {llm.label}")
-            return {"kind": "dfd", "artifact": art}
-
-    return {"job_id": jobs.start_job(review_id, "threat_dfd", work)}
+        await progress(0.2, f"AI reading {name}…")
+        data = await dfd_from_image(llm, image)
+    finally:
+        p.unlink(missing_ok=True)
+    art = _save(review_id, "dfd", data, "ai", llm.label, f"Data flow diagram imported from {name} via {llm.label}")
+    return {"kind": "dfd", "artifact": art}
 
 
 # --------------------------------------------------------------------------- edit

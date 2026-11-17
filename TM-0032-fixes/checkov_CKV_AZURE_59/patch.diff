@@ -1,0 +1,20 @@
+--- a/terraform/azure/mssql.tf
++++ b/terraform/azure/mssql.tf
+@@ -5,6 +5,7 @@
+   account_tier              = "Standard"
+   account_replication_type  = "LRS"
+   enable_https_traffic_only = true
++  allow_blob_public_access  = false
+   tags = {
+     git_commit           = "a1d1c1ce31a1bde6dafa188846d90eca82abe5fd"
+     git_file             = "terraform/azure/mssql.tf"
+--- a/terraform/azure/storage.tf
++++ b/terraform/azure/storage.tf
+@@ -26,6 +26,7 @@
+   location                 = azurerm_resource_group.example.location
+   account_tier             = "Standard"
+   account_replication_type = "GRS"
++  allow_blob_public_access = false
+   queue_properties {
+     logging {
+       delete                = false

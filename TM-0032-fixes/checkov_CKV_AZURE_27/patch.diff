@@ -1,0 +1,100 @@
+--- a/terraform/azure/mssql.tf
++++ b/terraform/azure/mssql.tf
+@@ -160,8 +160,9 @@
+     "Sql_Injection",
+     "Data_Exfiltration"
+   ]
+-  retention_days  = 20
+-  email_addresses = ["securityengineer@bridgecrew.io"]
++  retention_days       = 20
++  email_addresses      = ["securityengineer@bridgecrew.io"]
++  email_account_admins = true
+ }
+ 
+ resource "azurerm_mssql_server_security_alert_policy" "alertpolicy2" {
+@@ -174,8 +175,9 @@
+     "Sql_Injection",
+     "Data_Exfiltration"
+   ]
+-  retention_days  = 20
+-  email_addresses = ["securityengineer@bridgecrew.io"]
++  retention_days       = 20
++  email_addresses      = ["securityengineer@bridgecrew.io"]
++  email_account_admins = true
+ }
+ 
+ resource "azurerm_mssql_server_security_alert_policy" "alertpolicy3" {
+@@ -188,8 +190,9 @@
+     "Sql_Injection",
+     "Data_Exfiltration"
+   ]
+-  retention_days  = 20
+-  email_addresses = ["securityengineer@bridgecrew.io"]
++  retention_days       = 20
++  email_addresses      = ["securityengineer@bridgecrew.io"]
++  email_account_admins = true
+ }
+ 
+ resource "azurerm_mssql_server_security_alert_policy" "alertpolicy4" {
+@@ -202,8 +205,9 @@
+     "Sql_Injection",
+     "Data_Exfiltration"
+   ]
+-  retention_days  = 20
+-  email_addresses = ["securityengineer@bridgecrew.io"]
++  retention_days       = 20
++  email_addresses      = ["securityengineer@bridgecrew.io"]
++  email_account_admins = true
+ }
+ 
+ resource "azurerm_mssql_server_security_alert_policy" "alertpolicy5" {
+@@ -216,7 +220,8 @@
+     "Sql_Injection",
+     "Data_Exfiltration"
+   ]
+-  retention_days = 20
++  retention_days       = 20
++  email_account_admins = true
+ }
+ 
+ resource "azurerm_mssql_server_security_alert_policy" "alertpolicy6" {
+@@ -229,8 +234,9 @@
+     "Sql_Injection",
+     "Data_Exfiltration"
+   ]
+-  retention_days  = 20
+-  email_addresses = ["securityengineer@bridgecrew.io"]
++  retention_days       = 20
++  email_addresses      = ["securityengineer@bridgecrew.io"]
++  email_account_admins = true
+ }
+ 
+ resource "azurerm_mssql_server_security_alert_policy" "alertpolicy7" {
+@@ -243,6 +249,7 @@
+     "Sql_Injection",
+     "Data_Exfiltration"
+   ]
+-  retention_days  = 20
+-  email_addresses = ["securityengineer@bridgecrew.io"]
+-}
++  retention_days       = 20
++  email_addresses      = ["securityengineer@bridgecrew.io"]
++  email_account_admins = true
++}
+--- a/terraform/azure/sql.tf
++++ b/terraform/azure/sql.tf
+@@ -38,7 +38,8 @@
+     "Sql_Injection",
+     "Data_Exfiltration"
+   ]
+-  retention_days = 20
++  retention_days       = 20
++  email_account_admins = true
+ }
+ 
+ resource "azurerm_mysql_server" "example" {
+@@ -107,4 +108,4 @@
+   resource_group_name = azurerm_resource_group.example.name
+   server_name         = azurerm_postgresql_server.example.name
+   value               = "off"
+-}+}

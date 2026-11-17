@@ -1,8 +1,6 @@
 """Markdown export of a completed (or in-flight) security review."""
 from __future__ import annotations
 
-import sqlite3
-
 from . import db
 from .catalog import Catalog
 from .frameworks import CSF_ID, framework_meta, framework_of
@@ -108,11 +106,8 @@ def render_markdown(r: dict, cat: Catalog) -> str:
         out.append("")
     if ai.get("clarifying_questions"):
         out += ["## Additional questions raised", ""] + [f"- {q}" for q in ai["clarifying_questions"]] + [""]
-    try:
-        with db.tx() as conn:
-            for tm in r.get("linked_threat_models") or []:
-                out += report_section(get_artifacts(conn, tm["id"]), f"{tm['ref']}: {tm['title']}")
-    except sqlite3.OperationalError:  # threat-model table not created yet
-        pass
+    with db.tx() as conn:
+        for tm in r.get("linked_threat_models") or []:
+            out += report_section(get_artifacts(conn, tm["id"]), f"{tm['ref']}: {tm['title']}")
     out += ["## Activity", ""] + [f"- `{a['ts']}` **{a['action']}** {a['detail']}" for a in r.get("activity", [])]
     return "\n".join(out) + "\n"

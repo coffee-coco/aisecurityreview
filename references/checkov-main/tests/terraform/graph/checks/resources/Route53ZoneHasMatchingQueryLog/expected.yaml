@@ -1,0 +1,5 @@
+pass:
+  - "aws_route53_zone.pass"
+  - "aws_route53_zone.pass_private"
+fail:
+  - "aws_route53_zone.fail"

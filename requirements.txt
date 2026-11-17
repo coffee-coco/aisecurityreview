@@ -5,5 +5,16 @@ pyyaml>=6.0
 openpyxl>=3.1
 python-multipart>=0.0.9
 pypdf>=5.0
+# Postgres + migrations
+psycopg[binary]>=3.2
+psycopg-pool>=3.2
+sqlalchemy>=2.0
+alembic>=1.13
+# Background jobs (Redis broker; no kombu[redis] extra - it pins a `packaging` that conflicts with Checkov)
+celery>=5.4
+redis>=5.0
+# Auth: argon2 password / API key hashing, Fernet encryption of stored workspace secrets
+argon2-cffi>=23.1
+cryptography>=43.0
 # Optional but recommended: runs real Checkov scans on uploaded IaC (also works if `checkov` is on PATH)
 checkov>=3.2

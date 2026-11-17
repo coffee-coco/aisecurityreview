@@ -15,7 +15,8 @@
 </head>
 <body>
   <div class="bg-glow" aria-hidden="true"></div>
-  <div class="app">
+  <div id="auth-root" hidden></div>
+  <div class="app" id="app" hidden>
     <aside class="sidebar" id="sidebar">
       <a href="#/" class="brand" id="brand-link">
         <span class="brand-mark" aria-hidden="true">
@@ -29,9 +30,11 @@
         <a href="#/threat-models" class="nav-item" data-route="threat-models" id="nav-threat-models"></a>
         <a href="#/library" class="nav-item" data-route="library" id="nav-library"></a>
         <a href="#/mappings" class="nav-item" data-route="mappings" id="nav-mappings"></a>
+        <a href="#/jobs" class="nav-item" data-route="jobs" id="nav-jobs"></a>
         <a href="#/settings" class="nav-item" data-route="settings" id="nav-settings"></a>
       </nav>
       <div class="sidebar-foot">
+        <div class="user-box" id="user-box"></div>
         <a href="#/settings" class="ai-pill" id="ai-pill"></a>
         <div class="catalog-foot" id="catalog-foot"></div>
       </div>

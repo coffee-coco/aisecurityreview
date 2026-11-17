@@ -1,0 +1,13 @@
+{
+  "{\"file_path\": \"checkov.tf\", \"tf_source_modules\": null}": {
+    "locals": [
+      {
+        "FIVE": ["five"],
+        "NINE": ["nine"],
+        "TWO": ["two"],
+        "VICTOR": ["wictor"],
+        "AUTHORIZATION_CODE": ["nine-five-wictor-wictor-two"]
+      }
+    ]
+  }
+}

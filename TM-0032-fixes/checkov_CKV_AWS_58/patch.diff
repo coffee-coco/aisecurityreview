@@ -1,0 +1,29 @@
+--- a/terraform/aws/eks.tf
++++ b/terraform/aws/eks.tf
+@@ -115,6 +115,12 @@
+   })
+ }
+ 
++resource aws_kms_key "eks_kms_key" {
++  description             = "KMS key for EKS secrets encryption"
++  deletion_window_in_days = 7
++  enable_key_rotation     = true
++}
++
+ resource aws_eks_cluster "eks_cluster" {
+   name     = local.eks_name.value
+   role_arn = "${aws_iam_role.iam_for_eks.arn}"
+@@ -122,6 +128,13 @@
+   vpc_config {
+     endpoint_private_access = true
+     subnet_ids              = ["${aws_subnet.eks_subnet1.id}", "${aws_subnet.eks_subnet2.id}"]
++  }
++
++  encryption_config {
++    provider {
++      key_arn = aws_kms_key.eks_kms_key.arn
++    }
++    resources = ["secrets"]
+   }
+ 
+   depends_on = [

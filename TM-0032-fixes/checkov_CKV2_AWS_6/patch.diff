@@ -1,0 +1,97 @@
+--- a/terraform/aws/ec2.tf
++++ b/terraform/aws/ec2.tf
+@@ -287,6 +287,15 @@
+   })
+ }
+ 
++resource "aws_s3_bucket_public_access_block" "flowbucket" {
++  bucket = aws_s3_bucket.flowbucket.id
++
++  block_public_acls       = true
++  block_public_policy     = true
++  ignore_public_acls      = true
++  restrict_public_buckets = true
++}
++
+ output "ec2_public_dns" {
+   description = "Web Host Public DNS name"
+   value       = aws_instance.web_host.public_dns
+--- a/terraform/aws/s3.tf
++++ b/terraform/aws/s3.tf
+@@ -18,6 +18,15 @@
+     git_repo             = "terragoat"
+     yor_trace            = "0874007d-903a-4b4c-945f-c9c233e13243"
+   })
++}
++
++resource "aws_s3_bucket_public_access_block" "data" {
++  bucket = aws_s3_bucket.data.id
++
++  block_public_acls       = true
++  block_public_policy     = true
++  ignore_public_acls      = true
++  restrict_public_buckets = true
+ }
+ 
+ resource "aws_s3_bucket_object" "data_object" {
+@@ -62,6 +71,15 @@
+ 
+ }
+ 
++resource "aws_s3_bucket_public_access_block" "financials" {
++  bucket = aws_s3_bucket.financials.id
++
++  block_public_acls       = true
++  block_public_policy     = true
++  ignore_public_acls      = true
++  restrict_public_buckets = true
++}
++
+ resource "aws_s3_bucket" "operations" {
+   # bucket is not encrypted
+   # bucket does not have access logs
+@@ -86,6 +104,15 @@
+   })
+ }
+ 
++resource "aws_s3_bucket_public_access_block" "operations" {
++  bucket = aws_s3_bucket.operations.id
++
++  block_public_acls       = true
++  block_public_policy     = true
++  ignore_public_acls      = true
++  restrict_public_buckets = true
++}
++
+ resource "aws_s3_bucket" "data_science" {
+   # bucket is not encrypted
+   bucket = "${local.resource_prefix.value}-data-science"
+@@ -108,6 +135,15 @@
+     git_repo             = "terragoat"
+     yor_trace            = "9a7c8788-5655-4708-bbc3-64ead9847f64"
+   }
++}
++
++resource "aws_s3_bucket_public_access_block" "data_science" {
++  bucket = aws_s3_bucket.data_science.id
++
++  block_public_acls       = true
++  block_public_policy     = true
++  ignore_public_acls      = true
++  restrict_public_buckets = true
+ }
+ 
+ resource "aws_s3_bucket" "logs" {
+@@ -139,3 +175,12 @@
+     yor_trace            = "01946fe9-aae2-4c99-a975-e9b0d3a4696c"
+   })
+ }
++
++resource "aws_s3_bucket_public_access_block" "logs" {
++  bucket = aws_s3_bucket.logs.id
++
++  block_public_acls       = true
++  block_public_policy     = true
++  ignore_public_acls      = true
++  restrict_public_buckets = true
++}

@@ -1,0 +1,14 @@
+--- a/terraform/aws/eks.tf
++++ b/terraform/aws/eks.tf
+@@ -116,8 +116,9 @@
+ }
+ 
+ resource aws_eks_cluster "eks_cluster" {
+-  name     = local.eks_name.value
+-  role_arn = "${aws_iam_role.iam_for_eks.arn}"
++  name                      = local.eks_name.value
++  role_arn                  = "${aws_iam_role.iam_for_eks.arn}"
++  enabled_cluster_log_types = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+ 
+   vpc_config {
+     endpoint_private_access = true

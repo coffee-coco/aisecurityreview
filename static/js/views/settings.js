@@ -1,6 +1,6 @@
 import { api, getMeta } from '../api.js';
-import { esc, icon, toast } from '../ui.js';
-import { refreshSidebar } from '../app.js';
+import { confirmDialog, esc, fmtDate, icon, toast } from '../ui.js';
+import { isAdmin, refreshSession, refreshSidebar, session } from '../app.js';
 
 const PROVIDERS = {
   heuristic: { name: 'Offline rules', sub: 'Keyword + intake-flag scoping. No data leaves your machine.', bg: 'linear-gradient(135deg,#475569,#1e293b)', letter: '⚙' },
@@ -19,7 +19,7 @@ export async function render(root) {
     <div class="page-head"><div>
       <div class="eyebrow">${icon('settings')} Configuration</div>
       <h1>Settings</h1>
-      <p>Choose the AI engine used to scope reviews. Keys are stored locally in the SQLite database (or set them via environment variables / <span class="mono">.env</span>).</p>
+      <p>Settings for the <b>${esc(session.me.workspace?.name || '')}</b> workspace. AI keys and GitLab tokens belong to this workspace and are stored encrypted. ${isAdmin() ? '' : 'Only workspace admins can change them.'}</p>
     </div></div>
 
     <section class="card" style="margin-bottom:16px">
@@ -30,10 +30,63 @@ export async function render(root) {
           <strong>${p.name}</strong><small>${p.sub}</small></button>`).join('')}</div>
       <div id="prov-fields"></div>
       <div class="row" style="margin-top:18px">
-        <button class="btn primary" id="save-settings">${icon('check')} Save</button>
-        <button class="btn" id="test-settings">${icon('zap')} Test connection</button>
+        <button class="btn primary" id="save-settings" ${isAdmin() ? '' : 'disabled'}>${icon('check')} Save</button>
+        <button class="btn" id="test-settings" ${isAdmin() ? '' : 'disabled'}>${icon('zap')} Test connection</button>
       </div>
       <div id="test-out"></div>
+    </section>
+
+    <section class="card" style="margin-bottom:16px">
+      <h2 class="section-title">${icon('code')} GitLab credentials</h2>
+      <p class="small muted" style="margin:0 0 12px">Used when linking a repository on this GitLab host without entering a token. Use a personal, group or project access token with <span class="mono">read_repository</span> scope.</p>
+      <div class="grid-3">
+        <div class="field"><label for="gl-url">GitLab URL</label><input class="input" id="gl-url" value="${esc(s.gitlab_base_url || '')}" placeholder="https://gitlab.com" /></div>
+        <div class="field"><label for="gl-user">Username</label><input class="input" id="gl-user" value="${esc(s.gitlab_username || '')}" placeholder="oauth2" /><span class="hint">Any non-empty value works for access tokens</span></div>
+        <div class="field"><label for="gl-token">Access token</label><input class="input" id="gl-token" type="password" autocomplete="off" placeholder="${s.gitlab_token_set ? `Saved (${esc(s.gitlab_token_hint)}) — leave blank to keep` : 'glpat-…'}" /></div>
+      </div>
+      <div class="row" style="margin-top:14px"><button class="btn primary" id="gl-save" ${isAdmin() ? '' : 'disabled'}>${icon('check')} Save GitLab credentials</button></div>
+    </section>
+
+    <section class="card" style="margin-bottom:16px">
+      <h2 class="section-title">${icon('lock')} API keys</h2>
+      <p class="small muted" style="margin:0 0 12px">Call the API with <span class="mono">Authorization: Bearer &lt;key&gt;</span> (see <a href="/docs" target="_blank" rel="noopener">/docs</a>). A key acts in this workspace with the lower of its role and yours.</p>
+      <div class="row wrap" style="margin-bottom:12px">
+        <input class="input sm" id="key-name" placeholder="Key name, e.g. CI pipeline" style="flex:1;min-width:200px" />
+        <select class="select sm" id="key-role">${['read', 'write', 'admin'].map((r) => `<option value="${r}">${r}</option>`).join('')}</select>
+        <select class="select sm" id="key-exp"><option value="">No expiry</option><option value="30">30 days</option><option value="90">90 days</option><option value="365">1 year</option></select>
+        <button class="btn sm primary" id="key-create">${icon('plus')} Create key</button>
+      </div>
+      <div id="key-new"></div>
+      <div id="key-list"></div>
+    </section>
+
+    <section class="card" style="margin-bottom:16px">
+      <h2 class="section-title">${icon('user')} Workspace members</h2>
+      ${isAdmin() ? `<div class="row wrap" style="margin-bottom:12px">
+        <input class="input sm" id="mem-email" type="email" placeholder="Email of a registered user" style="flex:1;min-width:220px" />
+        <select class="select sm" id="mem-role">${['read', 'write', 'admin'].map((r) => `<option value="${r}">${r}</option>`).join('')}</select>
+        <button class="btn sm primary" id="mem-add">${icon('plus')} Add member</button></div>` : ''}
+      <div id="mem-list"></div>
+    </section>
+
+    <section class="card" style="margin-bottom:16px">
+      <h2 class="section-title">${icon('settings')} Account and workspaces</h2>
+      <div class="grid-2">
+        <div>
+          <div class="label" style="margin-bottom:8px">Change password</div>
+          <div class="field"><input class="input" id="pw-cur" type="password" placeholder="Current password" autocomplete="current-password" /></div>
+          <div class="field" style="margin-top:8px"><input class="input" id="pw-new" type="password" placeholder="New password (min 8 characters)" autocomplete="new-password" /></div>
+          <button class="btn sm" id="pw-save" style="margin-top:10px">${icon('check')} Update password</button>
+        </div>
+        <div>
+          ${isAdmin() ? `<div class="label" style="margin-bottom:8px">Rename this workspace</div>
+          <div class="row"><input class="input sm" id="ws-name" value="${esc(session.me.workspace?.name || '')}" style="flex:1" />
+            <button class="btn sm" id="ws-rename">${icon('edit')} Rename</button></div>` : ''}
+          <div class="label" style="margin:14px 0 8px">Create another workspace</div>
+          <div class="row"><input class="input sm" id="ws-new" placeholder="Workspace name" style="flex:1" />
+            <button class="btn sm" id="ws-create">${icon('plus')} Create</button></div>
+        </div>
+      </div>
     </section>
 
     <section class="card">
@@ -104,4 +157,98 @@ export async function render(root) {
     }
   });
   drawFields();
+  initWorkspaceSections(root, s);
+}
+
+function initWorkspaceSections(root, s) {
+  const $ = (sel) => root.querySelector(sel);
+  const me = session.me;
+
+  $('#gl-save').addEventListener('click', async () => {
+    const body = { gitlab_base_url: $('#gl-url').value.trim(), gitlab_username: $('#gl-user').value.trim() };
+    if ($('#gl-token').value) body.gitlab_token = $('#gl-token').value;
+    try {
+      Object.assign(s, await api.put('/api/settings', body));
+      $('#gl-token').value = '';
+      $('#gl-token').placeholder = s.gitlab_token_set ? `Saved (${s.gitlab_token_hint}) — leave blank to keep` : 'glpat-…';
+      toast('GitLab credentials saved');
+    } catch (e) { toast(e.message, 'err'); }
+  });
+
+  const drawKeys = async () => {
+    const keys = await api.get('/api/api-keys');
+    $('#key-list').innerHTML = keys.length ? `<table class="table plain"><thead><tr><th>Name</th><th>Key</th><th>Role</th>
+      ${isAdmin() ? '<th>Owner</th>' : ''}<th>Created</th><th>Last used</th><th>Expires</th><th></th></tr></thead><tbody>
+      ${keys.map((k) => `<tr class="${k.revoked_at ? 'muted' : ''}"><td>${esc(k.name)}</td><td class="mono">sntl_${esc(k.prefix)}_…</td>
+        <td><span class="badge">${esc(k.role)}</span></td>${isAdmin() ? `<td>${esc(k.email)}</td>` : ''}
+        <td>${fmtDate(k.created_at)}</td><td>${k.last_used_at ? fmtDate(k.last_used_at) : '—'}</td>
+        <td>${k.revoked_at ? 'Revoked' : k.expires_at ? fmtDate(k.expires_at) : 'Never'}</td>
+        <td>${k.revoked_at ? '' : `<button class="btn sm danger" data-revoke="${k.id}">${icon('trash')} Revoke</button>`}</td></tr>`).join('')}
+      </tbody></table>` : '<p class="small muted">No API keys yet.</p>';
+  };
+  $('#key-create').addEventListener('click', async () => {
+    const name = $('#key-name').value.trim();
+    if (!name) return toast('Give the key a name', 'err');
+    try {
+      const exp = $('#key-exp').value;
+      const k = await api.post('/api/api-keys', { name, role: $('#key-role').value, expires_in_days: exp ? Number(exp) : null });
+      $('#key-new').innerHTML = `<div class="test-result ok">Copy this key now — it will not be shown again:<br><code class="mono" style="user-select:all">${esc(k.key)}</code></div>`;
+      $('#key-name').value = '';
+      await drawKeys();
+    } catch (e) { toast(e.message, 'err'); }
+  });
+  $('#key-list').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-revoke]');
+    if (!b || !(await confirmDialog('Revoke API key?', 'Applications using this key will lose access immediately.', 'Revoke'))) return;
+    try { await api.del(`/api/api-keys/${b.dataset.revoke}`); await drawKeys(); toast('Key revoked'); } catch (err) { toast(err.message, 'err'); }
+  });
+
+  const drawMembers = async (rows) => {
+    rows = rows || await api.get('/api/workspace/members');
+    $('#mem-list').innerHTML = `<table class="table plain"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th></th></tr></thead><tbody>
+      ${rows.map((m) => `<tr><td>${esc(m.name)}</td><td>${esc(m.email)}</td><td>${isAdmin()
+        ? `<select class="select sm" data-role="${m.user_id}">${['read', 'write', 'admin'].map((r) => `<option ${r === m.role ? 'selected' : ''}>${r}</option>`).join('')}</select>`
+        : `<span class="badge">${esc(m.role)}</span>`}</td>
+        <td>${isAdmin() && m.user_id !== me.user.id ? `<button class="btn sm danger" data-remove="${m.user_id}">${icon('trash')} Remove</button>` : ''}</td></tr>`).join('')}
+      </tbody></table>`;
+  };
+  $('#mem-add')?.addEventListener('click', async () => {
+    try {
+      await drawMembers(await api.post('/api/workspace/members', { email: $('#mem-email').value.trim(), role: $('#mem-role').value }));
+      $('#mem-email').value = '';
+      toast('Member added');
+    } catch (e) { toast(e.message, 'err'); }
+  });
+  $('#mem-list').addEventListener('change', async (e) => {
+    const sel = e.target.closest('[data-role]');
+    if (!sel) return;
+    try { await drawMembers(await api.patch(`/api/workspace/members/${sel.dataset.role}`, { role: sel.value })); toast('Role updated'); }
+    catch (err) { toast(err.message, 'err'); await drawMembers(); }
+  });
+  $('#mem-list').addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-remove]');
+    if (!b || !(await confirmDialog('Remove member?', 'They lose access to this workspace and their API keys for it are revoked.', 'Remove'))) return;
+    try { await drawMembers(await api.del(`/api/workspace/members/${b.dataset.remove}`)); } catch (err) { toast(err.message, 'err'); }
+  });
+
+  $('#pw-save').addEventListener('click', async () => {
+    try {
+      await api.post('/api/auth/password', { current_password: $('#pw-cur').value, new_password: $('#pw-new').value });
+      $('#pw-cur').value = ''; $('#pw-new').value = '';
+      toast('Password updated - other sessions were signed out');
+    } catch (e) { toast(e.message, 'err'); }
+  });
+  $('#ws-rename')?.addEventListener('click', async () => {
+    try { await api.patch('/api/workspace', { name: $('#ws-name').value.trim() }); await refreshSession(); toast('Workspace renamed'); }
+    catch (e) { toast(e.message, 'err'); }
+  });
+  $('#ws-create').addEventListener('click', async () => {
+    const name = $('#ws-new').value.trim();
+    if (!name) return toast('Enter a workspace name', 'err');
+    try { await api.post('/api/workspaces', { name }); location.hash = '#/'; location.reload(); }
+    catch (e) { toast(e.message, 'err'); }
+  });
+
+  drawKeys().catch((e) => toast(e.message, 'err'));
+  drawMembers().catch((e) => toast(e.message, 'err'));
 }

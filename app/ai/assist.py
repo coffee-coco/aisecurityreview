@@ -12,7 +12,7 @@ import re
 
 from ..catalog import Catalog, base_control
 from ..items import item_controls
-from ..library import library_risks, mitigation_library
+from ..library import applicable_mitigations, library_risks, mitigation_library
 from ..profile import (
     CLASS_IMPACT, CLASSIFICATIONS, DATA_TYPES, IMPACT, LIKELIHOOD, SEVERITY_TO_LI, data_phrase, effective_class,
     profile_summary, risk_rating, similarity, tokens,
@@ -241,7 +241,7 @@ def deterministic_item_suggestions(review: dict, item: dict, mitigations: list[d
     existing.sort(key=lambda s: (-s["score"], s["mitigation_id"]))
 
     library = []
-    for lid, m in lib.items():
+    for lid, m in applicable_mitigations(review).items():
         if lid in used_lib:
             continue  # already in the register - surfaced above as a reusable control
         score, why = _score(text, ctrls, m["title"], m["description"], m["nist"], m["keywords"])
@@ -290,7 +290,7 @@ async def item_suggestions(review: dict, item: dict, mitigations: list[dict], ca
     base = deterministic_item_suggestions(review, item, mitigations, cat)
     if llm is None:
         return base
-    lib = mitigation_library()
+    lib = applicable_mitigations(review)
     reg = {m["id"]: m for m in mitigations if m["id"] not in item.get("mitigation_ids", [])}
     candidates = [s["library_id"] for s in base["library"]]
     # Give the model a broader, deterministic shortlist of library controls.
@@ -422,6 +422,7 @@ async def suggest_risks(review: dict, items: list[dict], mitigations: list[dict]
     if llm is not None:
         design = review.get("design") or {}
         code = review.get("code_review") or {}
+        allowed = applicable_mitigations(review)
         user = json.dumps({
             "title": review.get("title"), "description": (review.get("description") or "")[:4000],
             "profile": profile_summary(review),
@@ -431,7 +432,7 @@ async def suggest_risks(review: dict, items: list[dict], mitigations: list[dict]
                             "findings": [f["title"] for f in code.get("findings", [])[:25]]},
             "already_recorded_risks": [f"{i.get('display_title')}: {i.get('risk', '')}"[:300] for i in existing],
             "candidate_risks": [s["title"] for s in out],
-            "mitigation_library": [{"id": k, "title": v["title"]} for k, v in mitigation_library().items()],
+            "mitigation_library": [{"id": k, "title": v["title"]} for k, v in allowed.items()],
         }, indent=1)
         try:
             res = await llm.complete_json(RISK_SYSTEM, user)
@@ -451,7 +452,7 @@ async def suggest_risks(review: dict, items: list[dict], mitigations: list[dict]
                      "likelihood": lk, "impact": ik, "rating": risk_rating(lk, ik),
                      "recommendation": str(r.get("recommendation", ""))[:1200],
                      "csf": [c for c in (r.get("csf") or []) if c in cat.subcategories][:5],
-                     "mitigations": [m for m in (r.get("mitigations") or []) if m in mitigation_library()][:4],
+                     "mitigations": [m for m in (r.get("mitigations") or []) if m in allowed][:4],
                      "rationale": str(r.get("rationale", ""))[:500], "source": "ai"}
                 out.append(s)
                 pool.append({"title": title, "risk": risk})

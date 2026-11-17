@@ -4,14 +4,18 @@ import { api, getMeta, pollJob } from '../api.js';
 import { confirmDialog, debounce, esc, fmtDate, icon, timeAgo, toast } from '../ui.js';
 import * as docsTab from './review-docs.js';
 import * as codeTab from './review-code.js';
+import * as fixesTab from './review-fixes.js';
 import * as threatsTab from './review-threats.js';
+import { canWrite } from '../app.js';
+import { devil } from '../devil.js';
 
 const TABS = [
   { id: 'code', label: 'Code & repository', icon: 'code', mod: codeTab },
   { id: 'docs', label: 'Documents & diagrams', icon: 'file', mod: docsTab },
   { id: 'threats', label: 'Threat model', icon: 'target', mod: threatsTab },
+  { id: 'fixes', label: 'Fixes & tests', icon: 'wand', mod: fixesTab },
 ];
-const JOB_LABEL = { design: 'Analysing documents', code_review: 'Reviewing code' };
+const JOB_LABEL = { design: 'Analysing documents', code_review: 'Reviewing code', fix_gen: 'Generating fixes' };
 
 export async function render(root, id) {
   const [meta, initial] = await Promise.all([getMeta(), api.get(`/api/reviews/${id}`)]);
@@ -90,9 +94,11 @@ export async function render(root, id) {
 
   // ------------------------------------------------------------------ jobs
   function renderJobs() {
-    root.querySelector('#rv-jobs').innerHTML = Object.values(jobState).map((j) => `<div class="job-banner" id="job-${esc(j.id)}"><span class="spin"></span>
+    const el = root.querySelector('#rv-jobs');
+    el.innerHTML = Object.values(jobState).map((j) => `<div class="job-banner" id="job-${esc(j.id)}"><span class="spin"></span>
       <div style="flex:1;min-width:0"><b>${esc(JOB_LABEL[j.kind] || j.kind)}</b> <span class="muted">· ${esc(j.message || '')}</span></div>
-      <div class="progress"><i style="width:${Math.round((j.progress || 0) * 100)}%"></i></div></div>`).join('');
+      <div class="progress"><i style="width:${Math.round((j.progress || 0) * 100)}%"></i></div>${canWrite() && j.id ? `<button class="btn sm ghost danger" data-cancel-job="${esc(j.id)}" title="Cancel this job">${icon('x')} Cancel</button>` : ''}</div>`).join('');
+    wireCancel(el);
   }
   function trackJob(job, { onDone } = {}) {
     const jid = typeof job === 'object' ? job.id : job;
@@ -107,7 +113,10 @@ export async function render(root, id) {
         renderJobs();
         await ctx.refresh();
         onDone?.(j);
-        toast(j.kind === 'code_review' ? `Code review finished · ${j.result?.findings ?? 0} findings` : j.kind === 'design' ? 'Design understanding ready' : 'Job finished');
+        toast(j.kind === 'code_review' ? `Code review finished · ${j.result?.findings ?? 0} findings`
+          : j.kind === 'design' ? 'Design understanding ready'
+          : j.kind === 'fix_gen' ? `Fixes generated · ${j.result?.done ?? 0}/${j.result?.total ?? 0}`
+          : 'Job finished');
         return j;
       })
       .catch((e) => { delete jobState[jid]; watching.delete(jid); if (alive) { renderJobs(); renderTabs(); toast(e.message, 'err', 8000); } });
@@ -118,10 +127,12 @@ export async function render(root, id) {
     const r = ctx.r;
     const docs = (r.documents || []).filter((d) => d.kind !== 'code').length;
     const findings = (r.code_review?.findings || []).length;
+    const fixesReady = Object.values(ctx.ui.fixes?.fixes || {}).filter((f) => f.status === 'ready').length;
     const counts = {
       code: `${findings ? `<span class="n">${findings}</span>` : ''}${ctx.runningJob('code_review') ? '<span class="live"></span>' : ''}`,
       docs: `<span class="n">${docs}</span>${ctx.runningJob('design') ? '<span class="live"></span>' : ''}`,
       threats: '',
+      fixes: `${fixesReady ? `<span class="n">${fixesReady}</span>` : ''}${ctx.runningJob('fix_gen') ? '<span class="live"></span>' : ''}`,
     };
     root.querySelector('#rv-tabs').innerHTML = TABS.map((t) => `<button class="rv-tab ${ctx.ui.tab === t.id ? 'on' : ''}" role="tab" data-tab="${t.id}" id="tab-${t.id}" aria-selected="${ctx.ui.tab === t.id}">${icon(t.icon)}${t.label}${counts[t.id]}</button>`).join('');
   }
@@ -141,7 +152,7 @@ export async function render(root, id) {
     const side = root.querySelector('#rv-side');
     side.innerHTML = `
       <div class="card side-card">
-        <h2 class="section-title">${icon('info')} Details</h2>
+        <h2 class="section-title">${icon('info')} Details<span class="spacer"></span>${devil({ type: 'review', owner: r.id })}</h2>
         <div class="stack" style="gap:12px">
           <div class="field"><label for="d-desc">Description</label><textarea class="textarea" id="d-desc" data-detail="description" rows="5">${esc(r.description)}</textarea></div>
           <div class="field"><label for="d-stack">Tech stack</label><input class="input sm" id="d-stack" data-detail="tech_stack" value="${esc(r.tech_stack)}" /></div>
@@ -182,4 +193,16 @@ export async function render(root, id) {
     alive = false;
     cleanups.forEach((fn) => fn());
   };
+}
+
+function wireCancel(el) {
+  if (el.dataset.wired) return;
+  el.dataset.wired = '1';
+  el.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-cancel-job]');
+    if (!b) return;
+    b.disabled = true;
+    try { await api.post(`/api/jobs/${b.dataset.cancelJob}/cancel`); toast('Job cancelled - it stops within a few seconds'); }
+    catch (err) { toast(err.message, 'err'); b.disabled = false; }
+  });
 }

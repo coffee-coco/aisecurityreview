@@ -1,0 +1,17 @@
+--- a/terraform/aws/ecr.tf
++++ b/terraform/aws/ecr.tf
+@@ -2,6 +2,9 @@
+   name                 = "${local.resource_prefix.value}-repository"
+   image_tag_mutability = "MUTABLE"
+ 
++  encryption_configuration {
++    encryption_type = "KMS"
++  }
+ 
+   tags = merge({
+     Name = "${local.resource_prefix.value}-repository"
+@@ -32,4 +35,4 @@
+     docker push ${local.docker_image}
+     BASH
+   }
+-}+}

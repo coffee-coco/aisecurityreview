@@ -134,14 +134,14 @@ def _validate(updates: dict) -> dict:
 
 
 def _item_row(conn, review_id: int, item_id: int):
-    row = conn.execute("SELECT * FROM items WHERE id = ? AND review_id = ?", (item_id, review_id)).fetchone()
+    row = conn.execute("SELECT * FROM items WHERE id = %s AND review_id = %s", (item_id, review_id)).fetchone()
     if not row:
         raise HTTPException(404, "Line item not found")
     return row
 
 
 def _mit_row(conn, review_id: int, mid: int):
-    row = conn.execute("SELECT * FROM mitigations WHERE id = ? AND review_id = ?", (mid, review_id)).fetchone()
+    row = conn.execute("SELECT * FROM mitigations WHERE id = %s AND review_id = %s", (mid, review_id)).fetchone()
     if not row:
         raise HTTPException(404, "Mitigating control not found")
     return row
@@ -196,7 +196,7 @@ def add_item(review_id: int, body: ItemCreate):
                          "recommendation": "New recommendation"}[data["kind"]]
     with db.tx() as conn:
         _get_review(conn, review_id)
-        if sid and conn.execute("SELECT 1 FROM items WHERE review_id = ? AND subcategory_id = ?",
+        if sid and conn.execute("SELECT 1 FROM items WHERE review_id = %s AND subcategory_id = %s",
                                 (review_id, sid)).fetchone():
             raise HTTPException(409, f"{sid} is already in this review")
         item_id = create_item(conn, review_id, data)
@@ -224,7 +224,7 @@ def update_item(review_id: int, item_id: int, body: ItemBody):
             updates["rec_status"] = "proposed"
         if updates:
             vals = [int(v) if isinstance(v, bool) else v for v in updates.values()]
-            conn.execute(f"UPDATE items SET {', '.join(f'{k} = ?' for k in updates)}, updated_at = ? WHERE id = ?",
+            conn.execute(f"UPDATE items SET {', '.join(f'{k} = %s' for k in updates)}, updated_at = %s WHERE id = %s",
                          [*vals, db.now(), item_id])
             db.touch(conn, review_id)
             label = row["subcategory_id"] or (row["title"] or "")[:60]
@@ -246,7 +246,7 @@ def update_item(review_id: int, item_id: int, body: ItemBody):
 def delete_item(review_id: int, item_id: int):
     with db.tx() as conn:
         row = _item_row(conn, review_id, item_id)
-        conn.execute("DELETE FROM items WHERE id = ?", (item_id,))
+        conn.execute("DELETE FROM items WHERE id = %s", (item_id,))
         _unpromote(conn, review_id, item_id)
         db.touch(conn, review_id)
         db.log_activity(conn, review_id, "item", f"Removed {row['subcategory_id'] or (row['title'] or row['kind'])[:80]}")
@@ -280,7 +280,7 @@ def link_mitigation(review_id: int, item_id: int, body: LinkBody):
         else:
             raise HTTPException(422, "Provide mitigation_id, library_id or new")
         link(conn, item_id, mid)
-        title = conn.execute("SELECT title FROM mitigations WHERE id = ?", (mid,)).fetchone()["title"]
+        title = conn.execute("SELECT title FROM mitigations WHERE id = %s", (mid,)).fetchone()["title"]
         db.log_activity(conn, review_id, "control",
                         f"Linked “{title}” to {row['subcategory_id'] or (row['title'] or row['kind'])[:60]}")
         db.touch(conn, review_id)
@@ -291,7 +291,7 @@ def link_mitigation(review_id: int, item_id: int, body: LinkBody):
 def unlink_mitigation(review_id: int, item_id: int, mid: int):
     with db.tx() as conn:
         _item_row(conn, review_id, item_id)
-        conn.execute("DELETE FROM item_mitigations WHERE item_id = ? AND mitigation_id = ?", (item_id, mid))
+        conn.execute("DELETE FROM item_mitigations WHERE item_id = %s AND mitigation_id = %s", (item_id, mid))
         db.touch(conn, review_id)
     return get_review(review_id)
 
@@ -327,8 +327,8 @@ def update_mitigation(review_id: int, mid: int, body: MitUpdate):
         if updates.get("state") == "existing" and row["status"] in ("proposed", "planned"):
             updates.setdefault("status", "implemented")
         if updates:
-            conn.execute(f"UPDATE mitigations SET {', '.join(f'{k} = ?' for k in updates)}, updated_at = ? "
-                         f"WHERE id = ?", [*updates.values(), db.now(), mid])
+            conn.execute(f"UPDATE mitigations SET {', '.join(f'{k} = %s' for k in updates)}, updated_at = %s "
+                         f"WHERE id = %s", [*updates.values(), db.now(), mid])
             db.touch(conn, review_id)
             if "status" in updates and updates["status"] != row["status"]:
                 db.log_activity(conn, review_id, "control", f"“{row['title']}” → {MIT_STATUSES[updates['status']]}")
@@ -339,7 +339,7 @@ def update_mitigation(review_id: int, mid: int, body: MitUpdate):
 def delete_mitigation(review_id: int, mid: int):
     with db.tx() as conn:
         row = _mit_row(conn, review_id, mid)
-        conn.execute("DELETE FROM mitigations WHERE id = ?", (mid,))
+        conn.execute("DELETE FROM mitigations WHERE id = %s", (mid,))
         db.log_activity(conn, review_id, "control", f"Removed control “{row['title']}”")
         db.touch(conn, review_id)
     return get_review(review_id)
@@ -350,13 +350,13 @@ def bulk_link(review_id: int, mid: int, body: BulkLink):
     """Apply one control to many line items - one control closing multiple questions/risks/recs."""
     with db.tx() as conn:
         row = _mit_row(conn, review_id, mid)
-        current = {r[0] for r in conn.execute("SELECT item_id FROM item_mitigations WHERE mitigation_id = ?", (mid,))}
+        current = {r[0] for r in conn.execute("SELECT item_id FROM item_mitigations WHERE mitigation_id = %s", (mid,))}
         wanted = set(body.item_ids)
         for iid in wanted - current:
             _item_row(conn, review_id, iid)
             link(conn, iid, mid)
         for iid in current - wanted:
-            conn.execute("DELETE FROM item_mitigations WHERE item_id = ? AND mitigation_id = ?", (iid, mid))
+            conn.execute("DELETE FROM item_mitigations WHERE item_id = %s AND mitigation_id = %s", (iid, mid))
         db.log_activity(conn, review_id, "control", f"“{row['title']}” now closes {len(wanted)} item(s)")
         db.touch(conn, review_id)
     return get_review(review_id)
@@ -367,10 +367,11 @@ def org_mitigations(q: str = "", exclude_review: int = 0, limit: int = 60):
     """Controls already recorded in other reviews (org-wide reuse) plus the library."""
     sql = """SELECT m.title, m.description, m.state, m.status, m.nist, m.library_ref, m.owner, r.id AS review_id,
                     r.title AS review_title, m.updated_at
-             FROM mitigations m JOIN reviews r ON r.id = m.review_id WHERE m.review_id != ?"""
-    args: list = [exclude_review]
+             FROM mitigations m JOIN reviews r ON r.id = m.review_id
+             WHERE r.workspace_id = %s AND m.review_id != %s"""
+    args: list = [db.workspace_id(), exclude_review]
     if q:
-        sql += " AND (m.title LIKE ? OR m.description LIKE ?)"
+        sql += " AND (m.title ILIKE %s OR m.description ILIKE %s)"
         args += [f"%{q}%", f"%{q}%"]
     sql += " ORDER BY m.updated_at DESC"
     groups: dict[str, dict] = {}
@@ -488,7 +489,7 @@ def risks_accept(review_id: int, body: RiskAcceptBody):
     with db.tx() as conn:
         review = _get_review(conn, review_id)
         code = review.get("code_review") or {}
-        have = {r[0] for r in conn.execute("SELECT library_ref FROM items WHERE review_id = ? AND library_ref != ''",
+        have = {r[0] for r in conn.execute("SELECT library_ref FROM items WHERE review_id = %s AND library_ref != ''",
                                            (review_id,))}
         for r in body.risks:
             if r.library_ref and r.library_ref in have:
@@ -510,7 +511,7 @@ def risks_accept(review_id: int, body: RiskAcceptBody):
                         f["item_id"] = item_id
             created.append(item_id)
         if code:
-            conn.execute("UPDATE reviews SET code_review = ? WHERE id = ?", (json.dumps(code), review_id))
+            conn.execute("UPDATE reviews SET code_review = %s WHERE id = %s", (json.dumps(code), review_id))
         if created:
             db.log_activity(conn, review_id, "risk", f"Added {len(created)} suggested risk(s)")
     return {"created": created, "review": get_review(review_id)}

@@ -1,0 +1,14 @@
+--- a/terraform/aws/es.tf
++++ b/terraform/aws/es.tf
+@@ -5,9 +5,9 @@
+   cluster_config {
+     instance_type            = "t2.small.elasticsearch"
+     instance_count           = 1
+-    dedicated_master_enabled = false
++    dedicated_master_enabled = true
+     dedicated_master_type    = "m4.large.elasticsearch"
+-    dedicated_master_count   = 1
++    dedicated_master_count   = 3
+   }
+ 
+ 

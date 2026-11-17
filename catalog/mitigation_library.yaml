@@ -6,6 +6,7 @@
 #   description: what "implemented" looks like
 #   nist:        SP 800-53 Rev 5 controls it implements (links it to CSF questions)
 #   keywords:    extra words that make it relevant to free-text questions / risks
+#   when:        optional - only suggest it for reviews whose profile matches (same syntax as risk_library.yaml)
 
 - id: M-MFA
   title: Enforce phishing-resistant MFA for all users
@@ -172,6 +173,7 @@
   description: SaaS tenant hardened against vendor security baseline - SSO enforced, admin roles limited, audit logging on, external sharing restricted.
   nist: [CM-6, AC-2, AU-2, SA-9]
   keywords: [saas, tenant, configuration, sharing, admin, sspm]
+  when: {any: [system:saas, flag:third_party, kw:saas]}
 - id: M-API-AUTH
   title: Strong API authentication and authorisation
   description: OAuth2/OIDC access tokens with audience/scope validation, short lifetimes, per-object authorisation checks and no API keys in URLs.
@@ -207,21 +209,25 @@
   description: Input/output content filtering, prompt-injection detection, system-prompt isolation, grounded responses with citations and refusal policies.
   nist: [SI-10, SI-15, SI-4, SA-8]
   keywords: [prompt injection, jailbreak, guardrail, content filter, llm, ai, model output, hallucination]
+  when: {any: [system:ai_agent, system:ai_ml, flag:uses_ai, code:ai, kw:llm, kw:large language model, kw:openai, kw:chatbot, kw:genai, kw:generative ai, kw:machine learning]}
 - id: M-AI-TOOL-SANDBOX
   title: Least-privilege, sandboxed AI agent tools
   description: Agent tools run with scoped credentials, allow-listed actions, sandboxed execution, human approval for high-impact actions and full audit logging.
   nist: [AC-6, SC-39, AU-2, CM-7]
   keywords: [agent, tool, function calling, autonomous, action, sandbox, code execution, mcp, plugin]
+  when: {any: [system:ai_agent, code:ai, kw:ai agent, kw:agentic, kw:tool calling, kw:function calling, kw:mcp]}
 - id: M-AI-DATA-GOV
   title: AI data governance and retrieval access control
   description: Retrieval respects source permissions (security trimming), no customer data used for model training, prompt/response logging with retention limits.
   nist: [AC-3, AC-4, SI-12, PT-2]
   keywords: [rag, retrieval, vector, embedding, training data, ai data, prompt logging, data leakage]
+  when: {any: [system:ai_agent, system:ai_ml, flag:uses_ai, code:ai, kw:llm, kw:large language model, kw:openai, kw:chatbot, kw:genai, kw:generative ai, kw:machine learning]}
 - id: M-AI-EVAL
   title: AI model evaluation and human oversight
   description: Pre-release evaluation for accuracy, bias and safety; human review of consequential outputs; monitoring for drift and misuse.
   nist: [SA-11, CA-7, RA-3, PM-9]
   keywords: [evaluation, bias, accuracy, human in the loop, oversight, model risk, drift]
+  when: {any: [system:ai_agent, system:ai_ml, flag:uses_ai, code:ai, kw:llm, kw:large language model, kw:openai, kw:chatbot, kw:genai, kw:generative ai, kw:machine learning]}
 - id: M-FILE-UPLOAD
   title: Secure file upload handling
   description: Type/size validation, malware scanning, storage outside web root with randomised names, and content served with safe headers.
@@ -252,8 +258,10 @@
   description: Devices on isolated networks with brokered access, signed firmware, default credentials removed and remote access via jump host.
   nist: [SC-7, CM-7, SI-7, AC-17]
   keywords: [iot, ot, device, firmware, scada, plc, sensor]
+  when: {any: [system:iot_ot, kw:scada, kw:operational technology, kw:industrial control]}
 - id: M-MOBILE-SECURITY
   title: Mobile app security controls (OWASP MASVS)
   description: Certificate pinning, secure local storage (Keychain/Keystore), jailbreak/root detection, obfuscation and MASVS testing.
   nist: [SC-8, SC-28, SA-11]
   keywords: [mobile, ios, android, app store, device storage, pinning]
+  when: {any: [system:mobile_app, kw:mobile app, kw:android]}

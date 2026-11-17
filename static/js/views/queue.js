@@ -1,5 +1,6 @@
 import { api } from '../api.js';
 import { STATUS, animateCount, esc, fmtDate, icon, isOverdue, riskBadge, statusBadge, timeAgo, toast, debounce } from '../ui.js';
+import { devil } from '../devil.js';
 
 let mode = localStorage.getItem('queueMode') || 'board';
 
@@ -68,7 +69,7 @@ export async function render(root) {
     <a class="rcard" href="#/review/${r.id}" draggable="true" data-id="${r.id}" id="rcard-${r.id}">
       <div class="top"><span class="ref">${r.ref}</span>
         <span class="badge" style="height:19px;font-size:10.5px">${r.change_type === 'new' ? 'New' : 'Change'}</span>
-        <span class="pri pri-${esc(r.priority)}" title="${esc(r.priority)} priority"></span></div>
+        <span class="pri pri-${esc(r.priority)}" title="${esc(r.priority)} priority"></span>${devil({ type: 'review', owner: r.id })}</div>
       <h3>${esc(r.title)}</h3>
       <div class="meta">${esc([r.business_unit, r.requester].filter(Boolean).join(' · ') || 'No owner set')}</div>
       <div class="badges">${riskBadge(r.risk_rating)}${r.technologies.slice(0, 3).map((t) => `<span class="badge">${esc(t)}</span>`).join('')}${r.technologies.length > 3 ? `<span class="badge">+${r.technologies.length - 3}</span>` : ''}</div>

@@ -3,6 +3,7 @@
 import { api } from '../api.js';
 import { renderMermaid } from '../mermaid.js';
 import { cap, confirmDialog, esc, icon, ratingPill, timeAgo, toast } from '../ui.js';
+import { devil } from '../devil.js';
 
 const ARTIFACTS = [
   ['threat_model', 'Threat Model'], ['attack_tree', 'Attack Tree'], ['dfd', 'Data Flow Diagram'],
@@ -210,10 +211,10 @@ function threatsBody(S, tm) {
       <span class="small muted">${all.filter((t) => t.item_id).length} of ${plural(all.length, 'threat')} promoted</span>
       ${todo ? `<button class="btn sm primary" data-promote-all>${icon('flag')} Promote all (${todo})</button>` : ''}
     </div>
-    ${shown.map((t) => threatRow(t, dread[String(t.id)])).join('') || '<div class="empty" style="padding:24px"><p>No threats in this category.</p></div>'}`;
+    ${shown.map((t) => threatRow(t, dread[String(t.id)], tm.id)).join('') || '<div class="empty" style="padding:24px"><p>No threats in this category.</p></div>'}`;
 }
 
-function threatRow(t, dr) {
+function threatRow(t, dr, tmId) {
   const c = catOf(t.category);
   return `<article class="tm-threat" data-tid="${esc(t.id)}" style="--c:${c?.color || 'var(--muted)'}">
     <div class="tm-main">
@@ -221,6 +222,7 @@ function threatRow(t, dr) {
         <span class="tm-cat">${esc(c?.id || t.category || 'Uncategorised')}</span>
         <span class="mono muted">${esc(t.id)}</span>
         ${dr?.rating ? `${ratingPill(dr.rating)}<span class="small muted" title="DREAD score">DREAD ${esc(dr.score)}</span>` : ''}
+        ${devil({ type: 'threat', kind: 'threat_model', ref: t.id, owner: tmId })}
       </div>
       <h3 class="tm-title">${esc(t.title || 'Untitled threat')}</h3>
       ${t.component ? `<div class="small muted tm-comp">${icon('cpu')} ${esc(t.component)}</div>` : ''}
@@ -244,7 +246,7 @@ function mitigationsBody(S, tm) {
       <span class="spacer"></span>${todo ? `<button class="btn sm primary" data-mit-all>${icon('shield')} Add all (${todo})</button>` : ''}</div>
     <div class="tm-table-wrap"><table class="flows tm-table"><thead><tr><th>Mitigation</th><th>Threats</th><th>NIST SP 800-53</th><th>Priority</th><th></th></tr></thead><tbody>
       ${ms.map((m) => `<tr data-mid="${esc(m.id)}">
-        <td class="tm-mt"><b>${esc(m.title || m.id)}</b>${m.description ? `<div class="small muted">${esc(m.description)}</div>` : ''}</td>
+        <td class="tm-mt"><b>${esc(m.title || m.id)}</b>${devil({ type: 'threat', kind: 'mitigations', ref: m.id, owner: tm.id })}${m.description ? `<div class="small muted">${esc(m.description)}</div>` : ''}</td>
         <td><div class="chips">${list(m.threat_ids).map((id) => `<span class="chip mono" title="${esc(titles[String(id)] || '')}">${esc(id)}</span>`).join('') || '<span class="muted">—</span>'}</div></td>
         <td><div class="chips">${list(m.nist).map((n) => `<span class="chip tm-nist">${esc(n)}</span>`).join('') || '<span class="muted">—</span>'}</div></td>
         <td>${ratingPill(m.priority) || '<span class="muted">—</span>'}</td>
@@ -267,14 +269,15 @@ function findingsBody(S, tm) {
   const hot = hotFindings(tm).length;
   return `<div class="row wrap tm-bulk"><span class="small muted">${fs.filter((f) => f.item_id).length} of ${plural(fs.length, 'finding')} added as risks${cr.ran_at ? ` · reviewed ${esc(timeAgo(cr.ran_at))}` : ''}</span>
       <span class="spacer"></span>${hot ? `<button class="btn sm primary" data-find-hot>${icon('flag')} Add critical/high as risks (${hot})</button>` : ''}</div>
-    ${fs.map(findingRow).join('')}`;
+    ${fs.map((f) => findingRow(f, tm.id)).join('')}`;
 }
 
-function findingRow(f) {
+function findingRow(f, tmId) {
   const files = [...new Set(list(f.evidence).filter((e) => e.file).map((e) => `${e.file}${e.line ? `:${e.line}` : ''}`))];
   return `<div class="finding sev-${esc(f.severity)} open" data-fid="${esc(f.id)}">
     <div class="finding-head" style="cursor:default">${ratingPill(f.severity)}
       <div class="t">${esc(f.title)}<small>${esc(cap(f.category || ''))}${f.source ? ` · ${esc(cap(f.source))}` : ''}</small></div>
+      ${devil({ type: 'finding', ref: f.id, owner: tmId })}
       ${f.item_id ? `<button class="btn sm" data-open-risk="${f.item_id}">${icon('flag')} Open risk</button>` : `<button class="btn sm primary" data-find>${icon('flag')} Add as risk</button>`}
     </div>
     <div class="finding-body">

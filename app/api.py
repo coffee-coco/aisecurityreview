@@ -4,15 +4,16 @@ from __future__ import annotations
 import json
 from typing import Literal, Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, Field
 
 from . import db, jobs, mappings, profile, threat_models
 from .ai.providers import PROVIDERS, ProviderError, build_llm
 from .ai.scoping import FLAG_LABELS, scope_review
+from .auth import require_role
 from .catalog import get_catalog
-from .config import DEFAULT_MODELS
+from .config import DEFAULT_MODELS, SECRET_SETTINGS
 from .items import create_item, load_items, load_mitigations
 from .report import render_markdown
 from .threat import store as threat_store
@@ -100,9 +101,12 @@ class SettingsUpdate(BaseModel):
     anthropic_api_key: Optional[str] = None
     gemini_api_key: Optional[str] = None
     ollama_base_url: Optional[str] = None
+    gitlab_base_url: Optional[str] = None
+    gitlab_username: Optional[str] = Field(None, max_length=100)
+    gitlab_token: Optional[str] = None
 
 
-SECRET_KEYS = ("openai_api_key", "anthropic_api_key", "gemini_api_key")
+SECRET_KEYS = SECRET_SETTINGS
 STATUS_LABELS = {"new": "New", "in_progress": "In progress", "awaiting_info": "Awaiting info",
                  "approved": "Approved", "rejected": "Rejected"}
 LIST_COLUMNS = ("technologies", "services", "data_types", "interacts_with", "system_types")
@@ -135,7 +139,8 @@ def sync_profile(data: dict, current: dict | None = None) -> dict:
 
 # --------------------------------------------------------------------------- helpers
 def _get_review(conn, review_id: int) -> dict:
-    row = db.review_row(conn.execute("SELECT * FROM reviews WHERE id = ?", (review_id,)).fetchone())
+    row = db.review_row(conn.execute("SELECT * FROM reviews WHERE id = %s AND workspace_id = %s",
+                                     (review_id, db.workspace_id())).fetchone())
     if not row:
         raise HTTPException(404, "Review not found")
     if row.get("kind") != "threat_model":
@@ -146,8 +151,9 @@ def _get_review(conn, review_id: int) -> dict:
 def _attach_threat_models(conn, review: dict) -> None:
     """Linked threat models feed the review's AI steps: a brief of each, and their code review when the review
     has none of its own."""
-    tms = [db.review_row(conn.execute("SELECT * FROM reviews WHERE id = ?", (t,)).fetchone())
-           for t in threat_models.linked_ids(conn, review["id"])]
+    tms = [tm for tm in (db.review_row(conn.execute("SELECT * FROM reviews WHERE id = %s AND workspace_id = %s",
+                                                    (t, db.workspace_id())).fetchone())
+                         for t in threat_models.linked_ids(conn, review["id"])) if tm]
     briefs = []
     for tm in tms:
         arts = threat_store.get_artifacts(conn, tm["id"])
@@ -169,7 +175,7 @@ def _requirements(conn, review_id: int) -> list[dict]:
 
 
 def _check_states(conn, review_id: int) -> dict[str, dict]:
-    return {r["check_id"]: dict(r) for r in conn.execute("SELECT * FROM review_checks WHERE review_id = ?", (review_id,))}
+    return {r["check_id"]: dict(r) for r in conn.execute("SELECT * FROM review_checks WHERE review_id = %s", (review_id,))}
 
 
 UNTOUCHED_SQL = """source NOT IN ('manual', 'library', 'code', 'document') AND kind = 'question' AND status = 'open'
@@ -180,19 +186,19 @@ UNTOUCHED_SQL = """source NOT IN ('manual', 'library', 'code', 'document') AND k
 def _apply_scope(conn, review: dict, result: dict) -> None:
     review_id = review["id"]
     # Remove untouched AI/heuristic questions; keep anything manual or already worked on.
-    conn.execute(f"DELETE FROM items WHERE review_id = ? AND {UNTOUCHED_SQL}", (review_id,))
+    conn.execute(f"DELETE FROM items WHERE review_id = %s AND {UNTOUCHED_SQL}", (review_id,))
     ts = db.now()
     for s in result["subcategories"]:
         conn.execute(
             """INSERT INTO items (review_id, kind, subcategory_id, priority, rationale, source, created_at, updated_at)
-               VALUES (?, 'question', ?, ?, ?, ?, ?, ?)
+               VALUES (%s, 'question', %s, %s, %s, %s, %s, %s)
                ON CONFLICT(review_id, subcategory_id) WHERE subcategory_id IS NOT NULL DO UPDATE SET
                  priority = excluded.priority, rationale = excluded.rationale""",
             (review_id, s["id"], s["priority"], s["rationale"], result["source"], ts, ts),
         )
     # Project-specific clarifying questions become custom question rows.
     have = {r[0].strip().lower() for r in conn.execute(
-        "SELECT title FROM items WHERE review_id = ? AND subcategory_id IS NULL", (review_id,))}
+        "SELECT title FROM items WHERE review_id = %s AND subcategory_id IS NULL", (review_id,))}
     for q in result.get("clarifying_questions") or []:
         if q.strip() and q.strip().lower() not in have:
             create_item(conn, review_id, {"kind": "question", "title": q.strip(), "source": result["source"],
@@ -200,9 +206,9 @@ def _apply_scope(conn, review: dict, result: dict) -> None:
                                           "priority": "medium"})
     ai_meta = {k: v for k, v in result.items() if k not in ("subcategories", "technologies", "services")}
     conn.execute(
-        """UPDATE reviews SET ai_meta = ?, technologies = ?, services = ?, updated_at = ?,
-                  risk_rating = CASE WHEN risk_rating = '' THEN ? ELSE risk_rating END
-           WHERE id = ?""",
+        """UPDATE reviews SET ai_meta = %s, technologies = %s, services = %s, updated_at = %s,
+                  risk_rating = CASE WHEN risk_rating = '' THEN %s ELSE risk_rating END
+           WHERE id = %s""",
         (json.dumps(ai_meta), json.dumps(result["technologies"]), json.dumps(result["services"]), ts,
          result["inherent_risk"], review_id),
     )
@@ -266,15 +272,18 @@ def control_detail(cid: str):
 # --------------------------------------------------------------------------- reviews
 @router.get("/stats")
 def stats():
+    ws = db.workspace_id()
     with db.tx() as conn:
-        by_status = {r["status"]: r["n"] for r in
-                     conn.execute("SELECT status, COUNT(*) n FROM reviews WHERE kind = 'review' GROUP BY status")}
+        by_status = {r["status"]: r["n"] for r in conn.execute(
+            "SELECT status, COUNT(*) AS n FROM reviews WHERE workspace_id = %s AND kind = 'review' GROUP BY status",
+            (ws,))}
         overdue = conn.execute(
-            "SELECT COUNT(*) FROM reviews WHERE kind = 'review' AND due_date != '' AND due_date < date('now') "
-            "AND status NOT IN ('approved', 'rejected')").fetchone()[0]
+            "SELECT COUNT(*) FROM reviews WHERE workspace_id = %s AND kind = 'review' AND due_date != '' "
+            "AND due_date < to_char(CURRENT_DATE, 'YYYY-MM-DD') AND status NOT IN ('approved', 'rejected')",
+            (ws,)).fetchone()[0]
         by_risk = {r["risk_rating"] or "unrated": r["n"] for r in conn.execute(
-            "SELECT risk_rating, COUNT(*) n FROM reviews WHERE kind = 'review' AND status NOT IN ('approved','rejected') "
-            "GROUP BY risk_rating")}
+            "SELECT risk_rating, COUNT(*) AS n FROM reviews WHERE workspace_id = %s AND kind = 'review' "
+            "AND status NOT IN ('approved','rejected') GROUP BY risk_rating", (ws,))}
     return {"by_status": {k: by_status.get(k, 0) for k in STATUS_LABELS}, "overdue": overdue,
             "open_by_risk": by_risk, "total": sum(by_status.values())}
 
@@ -292,13 +301,13 @@ def list_reviews(status: str = "", q: str = ""):
                   AND (x.is_recommendation = 1 OR x.kind = 'recommendation')) AS recs,
                (SELECT COUNT(*) FROM mitigations m WHERE m.review_id = r.id) AS controls,
                (SELECT COUNT(*) FROM review_checks c WHERE c.review_id = r.id AND c.status = 'fail') AS checks_failed
-             FROM reviews r WHERE r.kind = 'review'"""
-    args: list = []
+             FROM reviews r WHERE r.workspace_id = %s AND r.kind = 'review'"""
+    args: list = [db.workspace_id()]
     if status:
-        sql += " AND r.status = ?"
+        sql += " AND r.status = %s"
         args.append(status)
     if q:
-        sql += " AND (r.title LIKE ? OR r.description LIKE ? OR r.business_unit LIKE ? OR r.requester LIKE ?)"
+        sql += " AND (r.title ILIKE %s OR r.description ILIKE %s OR r.business_unit ILIKE %s OR r.requester ILIKE %s)"
         args += [f"%{q}%"] * 4
     sql += " ORDER BY CASE r.priority WHEN 'critical' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END, r.updated_at DESC"
     with db.tx() as conn:
@@ -318,12 +327,12 @@ async def create_review(body: ReviewCreate):
     data = sync_profile(body.model_dump())
     auto_scope = data.pop("auto_scope")
     ts = db.now()
-    cols = list(data.keys()) + ["created_at", "updated_at"]
+    cols = list(data.keys()) + ["workspace_id", "created_at", "updated_at"]
     vals = [json.dumps(v) if k in LIST_COLUMNS else int(v) if isinstance(v, bool) else v
-            for k, v in data.items()] + [ts, ts]
+            for k, v in data.items()] + [db.workspace_id(), ts, ts]
     with db.tx() as conn:
-        cur = conn.execute(f"INSERT INTO reviews ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", vals)
-        review_id = cur.lastrowid
+        review_id = conn.execute(f"INSERT INTO reviews ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))}) "
+                                 "RETURNING id", vals).fetchone()["id"]
         db.log_activity(conn, review_id, "created",
                         f"{'New initiative' if body.change_type == 'new' else 'Change'} submitted by {body.requester or 'unknown'}")
         review = _get_review(conn, review_id)
@@ -340,14 +349,14 @@ def get_review(review_id: int):
         items = load_items(conn, review_id, cat)
         mitigations = load_mitigations(conn, review_id)
         documents = [_doc_row(r) for r in conn.execute(
-            "SELECT * FROM documents WHERE review_id = ? ORDER BY id", (review_id,))]
+            "SELECT * FROM documents WHERE review_id = %s ORDER BY id", (review_id,))]
         checks = _check_states(conn, review_id)
         activity = [dict(r) for r in conn.execute(
-            "SELECT ts, action, detail FROM activity WHERE review_id = ? ORDER BY id DESC LIMIT 100", (review_id,))]
+            "SELECT ts, action, detail FROM activity WHERE review_id = %s ORDER BY id DESC LIMIT 100", (review_id,))]
         linked_reviews = [{"id": r["id"], "ref": f"SR-{r['id']:04d}", "title": r["title"], "status": r["status"]}
                           for r in conn.execute(
                               "SELECT r.id, r.title, r.status FROM review_threat_models l JOIN reviews r ON r.id = l.review_id "
-                              "WHERE l.threat_model_id = ? ORDER BY r.id", (review_id,))]
+                              "WHERE l.threat_model_id = %s ORDER BY r.id", (review_id,))]
     counts: dict[str, int] = {}
     for c in checks.values():
         counts[c["status"]] = counts.get(c["status"], 0) + 1
@@ -401,11 +410,11 @@ def update_review(review_id: int, body: ReviewUpdate):
         updates = sync_profile(updates, before)
         sets, vals = [], []
         for k, v in updates.items():
-            sets.append(f"{k} = ?")
+            sets.append(f"{k} = %s")
             vals.append(json.dumps(v) if k in LIST_COLUMNS else int(v) if isinstance(v, bool) else v)
-        sets.append("updated_at = ?")
+        sets.append("updated_at = %s")
         vals += [db.now(), review_id]
-        conn.execute(f"UPDATE reviews SET {', '.join(sets)} WHERE id = ?", vals)
+        conn.execute(f"UPDATE reviews SET {', '.join(sets)} WHERE id = %s", vals)
         if "status" in updates and updates["status"] != before["status"]:
             db.log_activity(conn, review_id, "status",
                             f"{STATUS_LABELS[before['status']]} → {STATUS_LABELS[updates['status']]}")
@@ -424,7 +433,7 @@ def update_review(review_id: int, body: ReviewUpdate):
 def delete_review(review_id: int):
     with db.tx() as conn:
         _get_review(conn, review_id)
-        conn.execute("DELETE FROM reviews WHERE id = ?", (review_id,))
+        conn.execute("DELETE FROM reviews WHERE id = %s", (review_id,))
 
 
 @router.post("/reviews/{review_id}/scope")
@@ -441,7 +450,7 @@ async def run_scope(review_id: int):
     with db.tx() as conn:
         _apply_scope(conn, review, result)
         if review["status"] == "new":
-            conn.execute("UPDATE reviews SET status = 'in_progress' WHERE id = ?", (review_id,))
+            conn.execute("UPDATE reviews SET status = 'in_progress' WHERE id = %s", (review_id,))
             db.log_activity(conn, review_id, "status", "New → In progress")
     return get_review(review_id)
 
@@ -456,7 +465,7 @@ def add_requirement(review_id: int, body: RequirementAdd):
         ts = db.now()
         conn.execute(
             """INSERT INTO items (review_id, kind, subcategory_id, priority, rationale, source, created_at, updated_at)
-               VALUES (?, 'question', ?, ?, 'Added manually by reviewer', 'manual', ?, ?)
+               VALUES (%s, 'question', %s, %s, 'Added manually by reviewer', 'manual', %s, %s)
                ON CONFLICT(review_id, subcategory_id) WHERE subcategory_id IS NOT NULL DO NOTHING""",
             (review_id, sid, body.priority, ts, ts))
         db.log_activity(conn, review_id, "requirement", f"Added {sid}")
@@ -467,24 +476,24 @@ def add_requirement(review_id: int, body: RequirementAdd):
 def update_requirement(review_id: int, sid: str, body: RequirementUpdate):
     updates = body.model_dump(exclude_unset=True)
     with db.tx() as conn:
-        row = conn.execute("SELECT * FROM items WHERE review_id = ? AND subcategory_id = ?",
+        row = conn.execute("SELECT * FROM items WHERE review_id = %s AND subcategory_id = %s",
                            (review_id, sid)).fetchone()
         if not row:
             raise HTTPException(404, "Requirement not in this review")
         if updates:
-            sets = ", ".join(f"{k} = ?" for k in updates) + ", updated_at = ?"
-            conn.execute(f"UPDATE items SET {sets} WHERE id = ?", [*updates.values(), db.now(), row["id"]])
+            sets = ", ".join(f"{k} = %s" for k in updates) + ", updated_at = %s"
+            conn.execute(f"UPDATE items SET {sets} WHERE id = %s", [*updates.values(), db.now(), row["id"]])
             db.touch(conn, review_id)
             if "status" in updates and updates["status"] != row["status"]:
                 db.log_activity(conn, review_id, "requirement", f"{sid} marked {updates['status'].replace('_', ' ')}")
-        out = dict(conn.execute("SELECT * FROM items WHERE id = ?", (row["id"],)).fetchone())
+        out = dict(conn.execute("SELECT * FROM items WHERE id = %s", (row["id"],)).fetchone())
     return out
 
 
 @router.delete("/reviews/{review_id}/requirements/{sid}", status_code=204)
 def remove_requirement(review_id: int, sid: str):
     with db.tx() as conn:
-        conn.execute("DELETE FROM items WHERE review_id = ? AND subcategory_id = ?", (review_id, sid))
+        conn.execute("DELETE FROM items WHERE review_id = %s AND subcategory_id = %s", (review_id, sid))
         db.log_activity(conn, review_id, "requirement", f"Removed {sid}")
 
 
@@ -517,7 +526,7 @@ def set_check(review_id: int, check_id: str, body: CheckUpdate):
     with db.tx() as conn:
         _get_review(conn, review_id)
         conn.execute(
-            """INSERT INTO review_checks (review_id, check_id, status, note, updated_at) VALUES (?, ?, ?, ?, ?)
+            """INSERT INTO review_checks (review_id, check_id, status, note, updated_at) VALUES (%s, %s, %s, %s, %s)
                ON CONFLICT(review_id, check_id) DO UPDATE SET status = excluded.status, note = excluded.note,
                updated_at = excluded.updated_at""",
             (review_id, check_id, body.status, body.note, db.now()))
@@ -554,11 +563,15 @@ def get_settings():
     return _masked(db.get_settings())
 
 
-@router.put("/settings")
+@router.put("/settings", dependencies=[Depends(require_role("admin"))])
 def put_settings(body: SettingsUpdate):
     updates = body.model_dump(exclude_unset=True, exclude_none=True)
     if "ai_provider" in updates and updates["ai_provider"] not in PROVIDERS:
         raise HTTPException(400, f"Provider must be one of {PROVIDERS}")
+    if updates.get("gitlab_base_url"):
+        updates["gitlab_base_url"] = updates["gitlab_base_url"].strip().rstrip("/")
+        if not updates["gitlab_base_url"].startswith("https://"):
+            raise HTTPException(400, "GitLab URL must start with https://")
     for k in SECRET_KEYS:  # empty secret = keep existing value
         if k in updates and not updates[k]:
             updates.pop(k)
@@ -566,7 +579,7 @@ def put_settings(body: SettingsUpdate):
     return _masked(db.get_settings())
 
 
-@router.post("/settings/test")
+@router.post("/settings/test", dependencies=[Depends(require_role("admin"))])
 async def test_settings():
     try:
         llm = build_llm(db.get_settings())

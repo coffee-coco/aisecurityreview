@@ -1,0 +1,29 @@
+--- a/terraform/azure/sql.tf
++++ b/terraform/azure/sql.tf
+@@ -58,6 +58,9 @@
+   infrastructure_encryption_enabled = true
+   public_network_access_enabled     = true
+   ssl_enforcement_enabled           = false
++  identity {
++    type = "SystemAssigned"
++  }
+   tags = {
+     git_commit           = "81738b80d571fa3034633690d13ffb460e1e7dea"
+     git_file             = "terraform/azure/sql.tf"
+@@ -68,6 +71,11 @@
+     git_repo             = "terragoat"
+     yor_trace            = "1ac18c16-09a4-41c9-9a66-6f514050178e"
+   }
++}
++
++resource "azurerm_mysql_server_key" "example" {
++  server_id        = azurerm_mysql_server.example.id
++  key_vault_key_id = azurerm_key_vault_key.example.id
+ }
+ 
+ resource "azurerm_postgresql_server" "example" {
+@@ -107,4 +115,4 @@
+   resource_group_name = azurerm_resource_group.example.name
+   server_name         = azurerm_postgresql_server.example.name
+   value               = "off"
+-}+}

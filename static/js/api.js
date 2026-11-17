@@ -1,11 +1,25 @@
-// Thin fetch wrapper for the FastAPI backend.
+// Thin fetch wrapper for the FastAPI backend (session cookie + CSRF header on unsafe methods).
+let csrfToken = null;
+let onAuthLost = null;
+export function setCsrfToken(token) { csrfToken = token; }
+export function setAuthLostHandler(fn) { onAuthLost = fn; }
+
+function authHeaders(method) {
+  return method !== 'GET' && csrfToken ? { 'X-CSRF-Token': csrfToken } : {};
+}
+
+function checkAuth(res, url) {
+  if (res.status === 401 && onAuthLost && !url.startsWith('/api/auth/')) onAuthLost();
+}
+
 async function request(method, url, body) {
-  const opts = { method, headers: {} };
+  const opts = { method, headers: authHeaders(method) };
   if (body !== undefined) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
   const res = await fetch(url, opts);
+  checkAuth(res, url);
   if (res.status === 204) return null;
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('application/json') ? await res.json() : await res.text();
@@ -27,7 +41,8 @@ export const api = {
 
 /** Multipart upload (FormData) - the browser sets the multipart boundary header. */
 export async function upload(url, formData) {
-  const res = await fetch(url, { method: 'POST', body: formData });
+  const res = await fetch(url, { method: 'POST', body: formData, headers: authHeaders('POST') });
+  checkAuth(res, url);
   const ct = res.headers.get('content-type') || '';
   const data = ct.includes('application/json') ? await res.json() : await res.text();
   if (!res.ok) {
@@ -49,6 +64,7 @@ export function pollJob(id, onProgress, ms = 700) {
         onProgress?.(j);
         if (j.status === 'done') return resolve(j);
         if (j.status === 'error') return reject(new Error(j.error || 'Job failed'));
+        if (j.status === 'cancelled') return reject(new Error(j.error || 'Job cancelled'));
       } catch (e) { return reject(e); }
       setTimeout(tick, ms);
     };

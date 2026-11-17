@@ -2,6 +2,7 @@
 // A threat model is built from code and documents, then linked from one or more security reviews.
 import { api } from '../api.js';
 import { esc, icon, timeAgo, toast } from '../ui.js';
+import { devil } from '../devil.js';
 
 const ARTIFACTS = [
   ['threat_model', 'Threat Model'], ['attack_tree', 'Attack Tree'], ['dfd', 'Data Flow Diagram'],
@@ -23,7 +24,7 @@ function card(t) {
   const linked = t.linked_reviews || [];
   const sources = t.sources || [];
   return `<article class="card tm-card" data-id="${t.id}" id="tm-card-${t.id}" tabindex="0" role="link" style="padding:16px;cursor:pointer">
-    <div class="row" style="gap:8px;margin-bottom:6px"><span class="mono" style="color:var(--accent-2);font-size:12px">${esc(t.ref)}</span><span class="spacer"></span><span class="small muted">${timeAgo(t.updated_at)}</span></div>
+    <div class="row" style="gap:8px;margin-bottom:6px"><span class="mono" style="color:var(--accent-2);font-size:12px">${esc(t.ref)}</span><span class="spacer"></span><span class="small muted">${timeAgo(t.updated_at)}</span>${devil({ type: 'review', owner: t.id })}</div>
     <h3 style="margin:0 0 6px;font-size:16px">${esc(t.title)}</h3>
     <p class="small muted" style="margin:0 0 10px;line-height:1.5">${esc((t.description || 'No description').slice(0, 180))}${(t.description || '').length > 180 ? '…' : ''}</p>
     <div class="row wrap" style="gap:6px;margin-bottom:10px">${sources.map(sourceChip).join('') || '<span class="small muted">No code linked yet</span>'}
@@ -54,9 +55,9 @@ export async function render(root) {
         <div class="grid-2" style="grid-template-columns:2fr 1fr 1fr;gap:12px">
           <div class="field"><label for="tmn-url">Git repository URL <span class="muted">(optional)</span></label><input class="input" id="tmn-url" placeholder="https://github.com/owner/repo" /></div>
           <div class="field"><label for="tmn-ref">Branch or tag</label><input class="input" id="tmn-ref" placeholder="Default branch" /></div>
-          <div class="field"><label for="tmn-token">Access token</label><input class="input" id="tmn-token" type="password" placeholder="Private repos only" /></div>
+          <div class="field"><label for="tmn-token">Access token</label><input class="input" id="tmn-token" type="password" placeholder="Blank = workspace GitLab token" /></div>
         </div>
-        <div class="row"><span class="small muted">The repository is cloned shallow and read-only. The token is used for this clone only and is never stored. You can also upload code later.</span><span class="spacer"></span>
+        <div class="row"><span class="small muted">The repository is cloned shallow and read-only. A token entered here is used for this clone only and never stored; leave it blank to use the workspace GitLab token. You can also upload code later.</span><span class="spacer"></span>
           <button class="btn primary" type="submit" id="tmn-submit">${icon('plus')} Create threat model</button></div>
       </div>
     </form>

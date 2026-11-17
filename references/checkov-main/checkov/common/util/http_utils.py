@@ -1,0 +1,334 @@
+from __future__ import annotations
+
+import json
+import ssl
+import sys
+import uuid
+from urllib.parse import urlparse
+import requests
+import logging
+import time
+import os
+import aiohttp
+import asyncio
+from typing import Any, TYPE_CHECKING, cast, Optional, overload
+
+from urllib3.response import HTTPResponse
+from urllib3.util import parse_url
+
+from checkov.common.resource_code_logger_filter import add_resource_code_filter_to_logger
+from checkov.common.util.consts import DEV_API_GET_HEADERS, DEV_API_POST_HEADERS, PRISMA_API_GET_HEADERS, \
+    PRISMA_PLATFORM, BRIDGECREW_PLATFORM
+from checkov.common.util.data_structures_utils import merge_dicts
+from checkov.common.util.type_forcers import force_int, force_float
+from checkov.version import version as checkov_version
+
+if TYPE_CHECKING:
+    from checkov.common.bridgecrew.bc_source import SourceType
+    from requests import Response
+    from aiohttp.typedefs import StrOrURL
+    from aiohttp import ClientResponse
+
+# https://requests.readthedocs.io/en/latest/user/advanced/#timeouts
+REQUEST_CONNECT_TIMEOUT = force_float(os.getenv("CHECKOV_REQUEST_CONNECT_TIMEOUT")) or 3.1
+REQUEST_READ_TIMEOUT = force_int(os.getenv("CHECKOV_REQUEST_READ_TIMEOUT")) or 30
+DEFAULT_TIMEOUT = (REQUEST_CONNECT_TIMEOUT, REQUEST_READ_TIMEOUT)
+
+# https://urllib3.readthedocs.io/en/stable/user-guide.html#retrying-requests
+REQUEST_RETRIES = force_int(os.getenv("CHECKOV_REQUEST_RETRIES")) or 3
+
+logger = logging.getLogger(__name__)
+add_resource_code_filter_to_logger(logger)
+
+
+ALLOWED_API_DOMAINS = ('.prismacloud.io', '.prismacloud.cn', '.bridgecrew.cloud', '.amazonaws.com')
+
+
+def _get_allowed_domains() -> tuple[str, ...]:
+    """Return the effective domain allowlist, extended by CHECKOV_ALLOW_API_DOMAINS if set.
+
+    The env var accepts a comma-separated list of domain suffixes, e.g.:
+        CHECKOV_ALLOW_API_DOMAINS=".execute-api.us-west-2.amazonaws.com,.example.dev"
+
+    A leading dot is added automatically if missing.
+    This is intended for local development / testing only.
+    """
+    extra = os.getenv('CHECKOV_ALLOW_API_DOMAINS', '').strip()
+    if not extra:
+        return ALLOWED_API_DOMAINS
+    extra_domains = tuple(
+        d if d.startswith('.') else f'.{d}'
+        for d in (s.strip() for s in extra.split(','))
+        if d
+    )
+    if extra_domains:
+        logger.warning(
+            "CHECKOV_ALLOW_API_DOMAINS is set — domain allowlist extended with: %s. "
+            "This bypasses production security controls and should only be used for local development.",
+            ', '.join(extra_domains),
+        )
+    return ALLOWED_API_DOMAINS + extra_domains
+
+
+def _is_allowed_domain(hostname: str) -> bool:
+    """Check if hostname matches an allowed domain (exact or subdomain)."""
+    allowed = _get_allowed_domains()
+    return any(
+        hostname == d.lstrip('.') or hostname.endswith(d)
+        for d in allowed
+    )
+
+
+def _validate_api_url_domain(url: str, param_name: str) -> None:
+    """Validate that a URL belongs to an allowed Prisma Cloud / Bridgecrew domain.
+
+    Exits the process with a clear error message if the domain is not allowed.
+    The allowlist can be extended via the CHECKOV_ALLOW_API_DOMAINS env var
+    for local development / testing.
+    """
+    parsed = urlparse(url)
+    if not parsed.hostname or not _is_allowed_domain(parsed.hostname):
+        message = (
+            f"{param_name} must be a prismacloud.io, prismacloud.cn, bridgecrew.cloud, "
+            f"or amazonaws.com domain, got: {url}"
+        )
+        logging.error(message)
+        sys.exit(2)
+
+
+@overload
+def normalize_bc_url(url: None) -> None:
+    ...
+
+
+@overload
+def normalize_bc_url(url: str) -> str:
+    ...
+
+
+def normalize_bc_url(url: str | None) -> str | None:
+    if not url:
+        return None
+    normalized = url.lower().replace('http:', 'https:').strip().rstrip('/')
+    _validate_api_url_domain(normalized, 'BC_API_URL')
+    return normalized
+
+
+def normalize_prisma_url(url: str | None) -> str | None:
+    """Correct common Prisma Cloud API URL misconfigurations and validate domain."""
+    if not url:
+        return None
+    normalized = url.lower().replace('//app', '//api').replace('http:', 'https:').strip().rstrip('/')
+    _validate_api_url_domain(normalized, 'prisma-api-url')
+    return normalized
+
+
+def get_auth_error_message(status: int, is_prisma: bool, is_s3_upload: bool) -> str:
+    platform_type = PRISMA_PLATFORM if is_prisma else BRIDGECREW_PLATFORM
+    error_message = f'Received unexpected response from platform (status code {status}). Please verify ' \
+                    f'that your API token is valid and has permissions to call the {platform_type} APIs.'
+    if platform_type == PRISMA_PLATFORM:
+        error_message += 'The key must be associated with a Developer or Sys Admin role / permission group.'
+    elif is_s3_upload:
+        # This part only applies to S3 upload, but not downloading the run config
+        error_message += 'The key must be associated with any role besides Auditor.'
+    return error_message
+
+
+def extract_error_message(response: requests.Response | HTTPResponse) -> Optional[str]:
+    if (isinstance(response, requests.Response) and response.content) or (
+            isinstance(response, HTTPResponse) and response.data):
+        raw = response.content if isinstance(response, requests.Response) else response.data
+        try:
+            content = json.loads(raw)
+            if 'message' in content:
+                return cast(str, content['message'])
+            elif 'Message' in content:
+                return cast(str, content['Message'])
+        except Exception:
+            logging.debug(f'Failed to parse the response content: {raw.decode()}')
+
+    return response.reason
+
+
+def get_auth_header(token: str) -> dict[str, str]:
+    return {
+        'Authorization': token
+    }
+
+
+def get_prisma_auth_header(token: str) -> dict[str, str]:
+    return {
+        'x-redlock-auth': token
+    }
+
+
+def get_version_headers(client: str, client_version: str | None) -> dict[str, str]:
+    return {
+        'x-api-client': client,
+        'x-api-version': client_version or "unknown",
+        'x-api-checkov-version': checkov_version
+    }
+
+
+def get_user_agent_header() -> dict[str, str]:
+    return {'User-Agent': f'checkov/{checkov_version}'}
+
+
+def get_default_get_headers(client: SourceType, client_version: str | None) -> dict[str, Any]:
+    return merge_dicts(DEV_API_GET_HEADERS, get_version_headers(client.name, client_version), get_user_agent_header())
+
+
+def get_default_post_headers(client: SourceType, client_version: str | None) -> dict[str, Any]:
+    return merge_dicts(DEV_API_POST_HEADERS, get_version_headers(client.name, client_version), get_user_agent_header())
+
+
+def get_prisma_get_headers() -> dict[str, str]:
+    return merge_dicts(PRISMA_API_GET_HEADERS, get_user_agent_header())
+
+
+def valid_url(url: str | None) -> bool:
+    """Checks for a valid URL, otherwise returns False"""
+
+    if not url:
+        return False
+
+    try:
+        result = parse_url(url)
+        return all([result.scheme, result.netloc])
+    except Exception:
+        return False
+
+
+def request_wrapper(
+        method: str,
+        url: str,
+        headers: dict[str, Any],
+        data: Any | None = None,
+        json: dict[str, Any] | None = None,
+        should_call_raise_for_status: bool = False,
+        params: dict[str, Any] | None = None,
+        log_json_body: bool = True
+) -> Response:
+    # using of "retry" mechanism for 'requests.request' due to unpredictable 'ConnectionError' and 'HttpError'
+    # instances that appears from time to time.
+    # 'ConnectionError' instances that appeared:
+    # * 'Connection aborted.', ConnectionResetError(104, 'Connection reset by peer').
+    # * 'Connection aborted.', OSError(107, 'Socket not connected').
+    # 'HTTPError' instances that appeared:
+    # * 403 Client Error: Forbidden for url.
+    # * 504 Server Error: Gateway Time-out for url.
+
+    request_max_tries = int(os.getenv('REQUEST_MAX_TRIES', 3))
+    sleep_between_request_tries = float(os.getenv('SLEEP_BETWEEN_REQUEST_TRIES', 1))
+
+    for i in range(request_max_tries):
+        try:
+            headers["X-Request-Id"] = str(uuid.uuid4())
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=headers,
+                data=data,
+                json=json,
+                params=params,
+                timeout=DEFAULT_TIMEOUT,
+            )
+            if should_call_raise_for_status:
+                response.raise_for_status()
+            return response
+        except requests.exceptions.ConnectionError as connection_error:
+            logging.error(f"Connection error on request {method}:{url},\ndata:\n{data}\njson:{json if log_json_body else 'Redacted'}\nheaders:{headers}")
+            if i != request_max_tries - 1:
+                sleep_secs = sleep_between_request_tries * (i + 1)
+                logging.info(f"retrying attempt number {i + 2} in {sleep_secs} seconds")
+                time.sleep(sleep_secs)
+                continue
+
+            logging.exception("request_wrapper connection error")
+            raise connection_error
+        except requests.exceptions.HTTPError as http_error:
+            status_code = 520  # set unknown error, if http_error.response is None
+            if http_error.response is not None:
+                status_code = http_error.response.status_code
+
+            logging.error(f"HTTP error on request {method}:{url},\ndata:\n{data}\njson:{json if log_json_body else 'Redacted'}\nheaders:{headers}")
+            if (status_code >= 500 or status_code == 403) and i != request_max_tries - 1:
+                sleep_secs = sleep_between_request_tries * (i + 1)
+                logging.info(f"retrying attempt number {i + 2} in {sleep_secs} seconds")
+                time.sleep(sleep_secs)
+                continue
+
+            logging.error("request_wrapper http error", exc_info=True)
+            raise http_error
+    else:
+        raise Exception("Unexpected behavior: the method \'request_wrapper\' should be terminated inside the above for-"
+                        "loop")
+
+
+async def aiohttp_client_session_wrapper(
+        method: str,
+        url: StrOrURL,
+        headers: dict[str, Any],
+        payload: dict[str, Any] | None = None,
+) -> ClientResponse:
+    from checkov.common.util import env_vars_config
+
+    request_max_tries = int(os.getenv('REQUEST_MAX_TRIES', 3))
+    sleep_between_request_tries = float(os.getenv('SLEEP_BETWEEN_REQUEST_TRIES', 1))
+
+    # 1. Read proxy URL (may include user:pass for authentication)
+    proxy_url = env_vars_config.env_vars_config.HTTPS_PROXY
+    proxy_auth = None
+    if proxy_url:
+        parsed_proxy_url = urlparse(proxy_url)
+        if parsed_proxy_url.username and parsed_proxy_url.password:
+            proxy_auth = aiohttp.BasicAuth(login=parsed_proxy_url.username, password=parsed_proxy_url.password)
+    # 2. Read path to custom certificate bundle
+    ca_bundle_path = env_vars_config.env_vars_config.BC_CA_BUNDLE
+    ssl_context = None
+    if ca_bundle_path:
+        logger.info(f"Loading custom CA bundle from: {ca_bundle_path}")
+        # Create a new SSL context
+        ssl_context = ssl.create_default_context(cafile=ca_bundle_path)
+    connector = aiohttp.TCPConnector(resolver=aiohttp.AsyncResolver(), ssl_context=ssl_context)
+
+    # adding retry mechanism for avoiding the next repeated unexpected issues:
+    # 1. Gateway Timeout from the server
+    # 2. ClientOSError
+    async with aiohttp.ClientSession(connector=connector) as session:
+        for i in range(request_max_tries):
+            logging.info(
+                f"[http_utils](aiohttp_client_session_wrapper) reporting attempt {i + 1} out of {request_max_tries}")
+            try:
+                async with session.request(
+                        method=method, url=url, headers=headers, json=payload, proxy=proxy_url, proxy_auth=proxy_auth
+                ) as response:
+                    content = await response.text()
+                if response.ok:
+                    logging.info(f"[http_utils](aiohttp_client_session_wrapper) - done successfully to url: \'{url}\'")
+                    return response
+                elif i != request_max_tries - 1:
+                    await asyncio.sleep(sleep_between_request_tries * (i + 1))
+                    continue
+                else:
+                    logging.error(f"[http_utils](aiohttp_client_session_wrapper) - Failed to send report to "
+                                  f"url \'{url}\'")
+                    logging.error(f"Status code: {response.status}, Reason: {response.reason}, Content: {content}")
+                    return response
+            except aiohttp.ClientOSError:
+                if i != request_max_tries - 1:
+                    await asyncio.sleep(sleep_between_request_tries * (i + 1))
+                    continue
+                else:
+                    logging.error(f"[http_utils](aiohttp_client_session_wrapper) - ClientOSError when sending report "
+                                  f"to url: \'{url}\'")
+                    raise
+            except Exception as e:
+                logging.error(f"[http_utils](aiohttp_client_session_wrapper) - exception when sending report "
+                              f"to url: \'{url}\':\n\'{e}\'")
+                raise
+
+        else:
+            raise Exception("Unexpected behavior: the method \'aiohttp_client_session_wrapper\' should be terminated "
+                            "inside the above for-loop")

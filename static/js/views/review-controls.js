@@ -2,6 +2,7 @@
 import { api } from '../api.js';
 import { aiField, wireAi } from '../ai-text.js';
 import { cap, confirmDialog, debounce, esc, icon, openOverlay, toast } from '../ui.js';
+import { devil } from '../devil.js';
 
 const STATUSES = ['proposed', 'planned', 'in_progress', 'implemented', 'verified'];
 
@@ -171,6 +172,7 @@ function drawGrid(el, ctx) {
     return `<div class="ctl-card" id="mc-${m.id}" data-mid="${m.id}">
       <div class="top"><span class="ic ${m.state === 'existing' ? 'existing' : ''}" title="${m.state === 'existing' ? 'Existing control' : 'New control'}">${icon(m.state === 'existing' ? 'check' : 'shield')}</span>
         <input class="title-in" data-mf="title" value="${esc(m.title)}" aria-label="Control title" id="mct-${m.id}" />
+        ${devil({ type: 'mitigation', ref: m.id, owner: ctx.r.id })}
         <span class="saved" data-saved></span>
         <button class="btn sm ghost icon danger" data-del title="Delete control" id="mcd-${m.id}">${icon('trash')}</button></div>
       <div class="ctl-meta">

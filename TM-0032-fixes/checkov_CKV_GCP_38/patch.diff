@@ -1,0 +1,15 @@
+--- a/terraform/gcp/instances.tf
++++ b/terraform/gcp/instances.tf
+@@ -5,6 +5,7 @@
+   name         = "terragoat-${var.environment}-machine"
+   zone         = data.google_compute_zones.zones.names[0]
+   boot_disk {
++    disk_encryption_key_raw = "MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE="
+     initialize_params {
+       image = "debian-cloud/debian-9"
+     }
+@@ -45,4 +46,4 @@
+     git_repo             = "terragoat"
+     yor_trace            = "bf87b7d7-a9d8-4f03-a0d4-8a4cbb647d03"
+   }
+-}+}

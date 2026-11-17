@@ -1,0 +1,16 @@
+--- a/terraform/gcp/big_data.tf
++++ b/terraform/gcp/big_data.tf
+@@ -6,7 +6,7 @@
+   settings {
+     tier = "db-f1-micro"
+     ip_configuration {
+-      ipv4_enabled = true
++      ipv4_enabled = false
+       authorized_networks {
+         name  = "WWW"
+         value = "0.0.0.0/0"
+@@ -34,4 +34,4 @@
+     git_repo             = "terragoat"
+     yor_trace            = "2560d883-bc3a-4cb6-b9fc-fb666edf626e"
+   }
+-}+}

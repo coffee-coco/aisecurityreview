@@ -68,7 +68,7 @@ def _summary(conn, tm: dict, arts: dict | None = None) -> dict:
                for d in _docs(conn, tm["id"], ("code",))]
     reviews = [{"id": r["id"], "ref": f"SR-{r['id']:04d}", "title": r["title"], "status": r["status"]}
                for r in conn.execute("SELECT r.id, r.title, r.status FROM review_threat_models l JOIN reviews r "
-                                     "ON r.id = l.review_id WHERE l.threat_model_id = ? ORDER BY r.id", (tm["id"],))]
+                                     "ON r.id = l.review_id WHERE l.threat_model_id = %s ORDER BY r.id", (tm["id"],))]
     return {
         "id": tm["id"], "ref": tm["ref"], "title": tm["title"], "description": tm["description"],
         "updated_at": tm["updated_at"], "sources": sources, "documents": len(_docs(conn, tm["id"], ("document", "image"))),
@@ -105,8 +105,8 @@ def _likelihood_impact(threat: dict, dread: dict | None, review: dict) -> tuple[
 
 
 def _valid(conn, review_id: int) -> tuple[set[int], set[int]]:
-    items = {r[0] for r in conn.execute("SELECT id FROM items WHERE review_id = ?", (review_id,))}
-    mits = {r[0] for r in conn.execute("SELECT id FROM mitigations WHERE review_id = ?", (review_id,))}
+    items = {r[0] for r in conn.execute("SELECT id FROM items WHERE review_id = %s", (review_id,))}
+    mits = {r[0] for r in conn.execute("SELECT id FROM mitigations WHERE review_id = %s", (review_id,))}
     return items, mits
 
 
@@ -134,7 +134,8 @@ def _linked_payload(review_id: int) -> dict:
             arts, findings = _overlaid(conn, review_id, tm, threat_models.get_links(conn, review_id, tm_id))
             linked.append({**_summary(conn, tm, arts), "artifacts": arts, "findings": findings})
         available = [_summary(conn, db.review_row(r)) for r in conn.execute(
-            "SELECT * FROM reviews WHERE kind = 'threat_model' ORDER BY updated_at DESC")
+            "SELECT * FROM reviews WHERE workspace_id = %s AND kind = 'threat_model' ORDER BY updated_at DESC",
+            (db.workspace_id(),))
             if r["id"] not in ids]
     return {"linked": linked, "available": available}
 
@@ -144,19 +145,20 @@ def _linked_payload(review_id: int) -> dict:
 def list_threat_models():
     with db.tx() as conn:
         return [_summary(conn, db.review_row(r)) for r in conn.execute(
-            "SELECT * FROM reviews WHERE kind = 'threat_model' ORDER BY updated_at DESC")]
+            "SELECT * FROM reviews WHERE workspace_id = %s AND kind = 'threat_model' ORDER BY updated_at DESC",
+            (db.workspace_id(),))]
 
 
 @router.post("/threat-models", status_code=201)
 def create_threat_model(body: ThreatModelCreate):
     data = sync_profile(body.model_dump())
     ts = db.now()
-    cols = list(data.keys()) + ["kind", "created_at", "updated_at"]
+    cols = list(data.keys()) + ["workspace_id", "kind", "created_at", "updated_at"]
     vals = [json.dumps(v) if k in LIST_COLUMNS else int(v) if isinstance(v, bool) else v
-            for k, v in data.items()] + ["threat_model", ts, ts]
+            for k, v in data.items()] + [db.workspace_id(), "threat_model", ts, ts]
     with db.tx() as conn:
-        tm_id = conn.execute(f"INSERT INTO reviews ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
-                             vals).lastrowid
+        tm_id = conn.execute(f"INSERT INTO reviews ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))}) "
+                             "RETURNING id", vals).fetchone()["id"]
         db.log_activity(conn, tm_id, "created", "Threat model created")
     return get_review(tm_id)
 
@@ -176,7 +178,7 @@ def link_threat_model(review_id: int, body: LinkBody):
         if threat_models.get_links(conn, review_id, tm["id"]) is not None:
             raise HTTPException(409, f"{tm['ref']} is already linked to this review")
         conn.execute("INSERT INTO review_threat_models (review_id, threat_model_id, links, linked_at) "
-                     "VALUES (?, ?, '{}', ?)", (review_id, tm["id"], db.now()))
+                     "VALUES (%s, %s, '{}', %s)", (review_id, tm["id"], db.now()))
         threat_models.apply_checkov(conn, review_id, tm.get("code_review") or {}, cat.checks_by_id)
         db.log_activity(conn, review_id, "threat", f"Linked threat model {tm['ref']}: {tm['title']}")
         db.log_activity(conn, tm["id"], "threat", f"Linked to review {review['ref']}: {review['title']}")
@@ -189,7 +191,7 @@ def unlink_threat_model(review_id: int, tm_id: int):
     with db.tx() as conn:
         review = _get_sr(conn, review_id)
         tm = _get_tm(conn, tm_id)
-        conn.execute("DELETE FROM review_threat_models WHERE review_id = ? AND threat_model_id = ?",
+        conn.execute("DELETE FROM review_threat_models WHERE review_id = %s AND threat_model_id = %s",
                      (review_id, tm_id))
         db.log_activity(conn, review_id, "threat", f"Unlinked threat model {tm['ref']} (promoted risks and "
                         "controls stay)")

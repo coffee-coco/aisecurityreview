@@ -1,0 +1,16 @@
+--- a/terraform/alicloud/trail.tf
++++ b/terraform/alicloud/trail.tf
+@@ -4,7 +4,7 @@
+   trail_name         = "action-trail"
+   oss_write_role_arn = alicloud_ram_role.trail.arn
+   oss_bucket_name    = alicloud_oss_bucket.trail.bucket
+-  event_rw           = "Read"
++  event_rw           = "All"
+   trail_region       = "cn-hangzhou"
+ }
+ 
+@@ -41,4 +41,4 @@
+   }
+   EOF
+   force    = true
+-}+}

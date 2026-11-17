@@ -34,7 +34,8 @@ def _requirement(rid: str) -> dict:
 
 
 def _check_review(conn, review_id: int | None) -> None:
-    if review_id is not None and not conn.execute("SELECT 1 FROM reviews WHERE id = ?", (review_id,)).fetchone():
+    if review_id is not None and not conn.execute("SELECT 1 FROM reviews WHERE id = %s AND workspace_id = %s",
+                                                  (review_id, db.workspace_id())).fetchone():
         raise HTTPException(404, "Review not found")
 
 
@@ -108,6 +109,7 @@ def put_link(rid: str, check_id: str, body: LinkUpdate):
 @router.delete("/mappings/requirements/{rid}/checks/{check_id}", status_code=204)
 def delete_link(rid: str, check_id: str, review_id: Optional[int] = None):
     with db.tx() as conn:
+        _check_review(conn, review_id)
         if not mappings.delete_link(conn, rid, check_id, review_id):
             raise HTTPException(404, "No reviewer link for this check")
 
@@ -122,6 +124,7 @@ def search_checks(q: str = "", provider: str = "", resource: str = "", control: 
     linked: set[str] = set()
     if requirement_id in cat.subcategories:
         with db.tx() as conn:
+            _check_review(conn, review_id)
             rows = mappings.overrides(conn, requirement_id, review_id)
         linked = {c["id"] for c in cat.subcategory_checks(requirement_id, overrides=rows)}
     return {"total": len(hits), "offset": offset, "limit": limit,
@@ -153,8 +156,8 @@ def import_links(body: LinkImport):
     imported, skipped = 0, []
     with db.tx() as conn:
         if body.replace:
-            conn.execute("DELETE FROM check_links WHERE review_id IS NULL")
-        reviews = {r[0] for r in conn.execute("SELECT id FROM reviews")}
+            conn.execute("DELETE FROM check_links WHERE workspace_id = %s AND review_id IS NULL", (db.workspace_id(),))
+        reviews = {r[0] for r in conn.execute("SELECT id FROM reviews WHERE workspace_id = %s", (db.workspace_id(),))}
         for i, x in enumerate(items):
             x = x if isinstance(x, dict) else {}
             rid, cid, action = str(x.get("requirement", "")), str(x.get("check", "")), x.get("action")

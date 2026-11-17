@@ -1,0 +1,21 @@
+--- a/terraform/azure/aks.tf
++++ b/terraform/azure/aks.tf
+@@ -7,9 +7,10 @@
+     type = "SystemAssigned"
+   }
+   default_node_pool {
+-    name       = "default"
+-    vm_size    = "Standard_D2_v2"
+-    node_count = 2
++    name                   = "default"
++    vm_size                = "Standard_D2_v2"
++    node_count             = 2
++    enable_host_encryption = true
+   }
+   addon_profile {
+     oms_agent {
+@@ -32,4 +33,4 @@
+     git_repo             = "terragoat"
+     yor_trace            = "6103d111-864e-42e5-899c-1864de281fd1"
+   }
+-}+}

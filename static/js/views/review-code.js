@@ -4,6 +4,7 @@
 import { api, upload } from '../api.js';
 import { cap, confirmDialog, esc, icon, openOverlay, timeAgo, toast } from '../ui.js';
 import { CODE_ACCEPT, dropzone, fmtSize, wireDrop } from './upload.js';
+import { devil } from '../devil.js';
 
 const LANGS = ['python', 'javascript', 'typescript', 'java', 'go', 'csharp', 'ruby', 'php', 'kotlin', 'rust', 'terraform', 'bicep', 'yaml', 'json', 'dockerfile', 'shell', 'sql', 'html', 'text'];
 const LANG_COLORS = ['#8b5cf6', '#22d3ee', '#f472b6', '#fbbf24', '#34d399', '#60a5fa', '#fb923c', '#a78bfa', '#2dd4bf', '#f87171', '#94a3b8', '#e879f9'];
@@ -26,8 +27,8 @@ export function render(el, ctx) {
           <div class="stack" style="gap:8px;margin-top:10px">
             <input class="input sm" id="git-url" placeholder="https://github.com/owner/repo" autocomplete="off" />
             <div class="row"><input class="input sm" id="git-ref" placeholder="Branch or tag (default branch if blank)" style="flex:1" autocomplete="off" />
-              <input class="input sm" id="git-token" type="password" placeholder="Access token (private repos only)" style="flex:1" autocomplete="off" /></div>
-            <div class="small muted">Shallow, read-only clone with the same limits as a zip. The token is used for this clone only and is never stored. Linking the same URL again refreshes it.</div>
+              <input class="input sm" id="git-token" type="password" placeholder="Access token (blank = workspace GitLab token)" style="flex:1" autocomplete="off" /></div>
+            <div class="small muted">Shallow, read-only clone with the same limits as a zip. A token entered here is used for this clone only and never stored; leave it blank to use the workspace GitLab token (Settings) for that host. Linking the same URL again refreshes it.</div>
             <div class="row"><span class="spacer"></span><button class="btn sm" id="git-add">${icon('plus')} Link repository</button></div>
           </div></details>
         <details class="ex" style="margin-top:12px" ${sources.length ? '' : 'open'}><summary>${icon('code')} Paste a snippet</summary>
@@ -200,7 +201,7 @@ function findingHTML(S, x) {
     <div class="finding-head"><span class="sev">${esc(x.severity)}</span>
       <div class="t">${esc(x.title)}<small>${esc(cap(x.category || ''))}${x.occurrences ? ` · ${x.occurrences} occurrence${x.occurrences === 1 ? '' : 's'}` : ''}${files.length ? ` · ${files.length} file${files.length === 1 ? '' : 's'}` : ''}${x.rule ? ` · ${esc(x.rule)}` : ''}</small></div>
       <span class="src ${x.source}">${icon(si)}${sl}</span>
-      ${icon('chevron', 'chev')}</div>
+      ${devil({ type: 'finding', ref: x.id })}${icon('chevron', 'chev')}</div>
     ${open ? `<div class="finding-body">
       <p style="margin:0 0 8px">${esc(x.description || '')}</p>
       ${x.recommendation ? `<div class="apply-row" style="margin:8px 0">${icon('bulb')}<div class="x"><b>Fix:</b> ${esc(x.recommendation)}</div></div>` : ''}

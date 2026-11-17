@@ -1,0 +1,25 @@
+.templates:
+  - &go
+    image: "nginx: 14.6"
+
+  - &install-go
+    - curl code
+    - ln code
+
+  - &version-tag export tag
+
+planOnlySubset:
+  script: echo "This job creates double pipelines!"
+  rules:
+    - changes:
+        - $DOCKERFILES_DIR/*
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+job:
+  script: echo "This job also creates double pipelines!"
+  rules:
+    - changes:
+        - $DOCKERFILES_DIR/*
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

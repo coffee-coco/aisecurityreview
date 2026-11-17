@@ -1,0 +1,96 @@
+--- a/terraform/azure/instance.tf
++++ b/terraform/azure/instance.tf
+@@ -1,4 +1,12 @@
+-resource random_string "password" {
++resource "random_password" "linux_password" {
++  length      = 16
++  special     = false
++  min_lower   = 1
++  min_numeric = 1
++  min_upper   = 1
++}
++
++resource "random_password" "windows_password" {
+   length      = 16
+   special     = false
+   min_lower   = 1
+@@ -8,7 +16,7 @@
+ 
+ resource azurerm_linux_virtual_machine "linux_machine" {
+   admin_username                  = "terragoat-linux"
+-  admin_password                  = random_string.password.result
++  admin_password                  = random_password.linux_password.result
+   location                        = var.location
+   name                            = "terragoat-linux"
+   network_interface_ids           = [azurerm_network_interface.ni_linux.id]
+@@ -42,7 +50,7 @@
+ }
+ 
+ resource azurerm_windows_virtual_machine "windows_machine" {
+-  admin_password        = random_string.password.result
++  admin_password        = random_password.windows_password.result
+   admin_username        = "tg-${var.environment}"
+   location              = var.location
+   name                  = "tg-win"
+@@ -74,4 +82,4 @@
+     git_repo             = "terragoat"
+     yor_trace            = "41938587-bdfc-4234-b941-560f1ae7d6c0"
+   })
+-}+}
+--- a/terraform/azure/sql.tf
++++ b/terraform/azure/sql.tf
+@@ -41,13 +41,21 @@
+   retention_days = 20
+ }
+ 
++resource "random_password" "mysql_password" {
++  length      = 16
++  special     = false
++  min_lower   = 1
++  min_numeric = 1
++  min_upper   = 1
++}
++
+ resource "azurerm_mysql_server" "example" {
+   name                = "terragoat-mysql-${var.environment}${random_integer.rnd_int.result}"
+   location            = azurerm_resource_group.example.location
+   resource_group_name = azurerm_resource_group.example.name
+ 
+   administrator_login          = "terragoat-${var.environment}"
+-  administrator_login_password = random_string.password.result
++  administrator_login_password = random_password.mysql_password.result
+ 
+   sku_name   = "B_Gen5_2"
+   storage_mb = 5120
+@@ -107,4 +115,4 @@
+   resource_group_name = azurerm_resource_group.example.name
+   server_name         = azurerm_postgresql_server.example.name
+   value               = "off"
+-}+}
+--- a/terraform/azure/key_vault.tf
++++ b/terraform/azure/key_vault.tf
+@@ -55,10 +55,18 @@
+   }
+ }
+ 
++resource "random_password" "key_vault_secret" {
++  length      = 16
++  special     = false
++  min_lower   = 1
++  min_numeric = 1
++  min_upper   = 1
++}
++
+ resource "azurerm_key_vault_secret" "secret" {
+   key_vault_id = azurerm_key_vault.example.id
+   name         = "terragoat-secret-${var.environment}"
+-  value        = random_string.password.result
++  value        = random_password.key_vault_secret.result
+   tags = {
+     git_commit           = "f8ff847bb69370bbe03b3d2b70db586ff6c867fc"
+     git_file             = "terraform/azure/key_vault.tf"
+@@ -69,4 +77,4 @@
+     git_repo             = "terragoat"
+     yor_trace            = "40517524-f05d-485b-bfbe-3fa0dbee511e"
+   }
+-}+}

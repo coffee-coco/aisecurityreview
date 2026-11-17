@@ -1,0 +1,121 @@
+# Fixes for TM-0032: https://github.com/bridgecrewio/terragoat.git
+
+115 finding(s) with a generated fix.
+
+Each folder is independent. If multiple fixes touch the same file, apply and test them one at a time - patches were generated against the original file, so applying several at once to the same file may conflict.
+
+- `ai_2980bcc5ad/` - Cross-Service Shared Credential Architecture Across Azure Infrastructure
+- `ai_375dc904cf/` - CI/CD Pipeline Credential Exfiltration via Unauthenticated Webhook
+- `ai_6c63fa5b0b/` - Critical Known Remote Code Execution Dependency in Build Manifest (Log4Shell)
+- `checkov_CKV2_AWS_2/` - Ensure that only encrypted EBS volumes are attached to EC2 instances
+- `checkov_CKV2_AWS_52/` - Ensure AWS ElasticSearch/OpenSearch Fine-grained access control is enabled
+- `checkov_CKV2_AWS_58/` - Ensure AWS Neptune cluster deletion protection is enabled
+- `checkov_CKV2_AWS_59/` - Ensure ElasticSearch/OpenSearch has dedicated master node enabled
+- `checkov_CKV2_AWS_6/` - Ensure that S3 bucket has a Public Access block
+- `checkov_CKV2_AWS_69/` - Ensure AWS RDS database instance configured with encryption in transit
+- `checkov_CKV2_AZURE_1/` - Ensure storage for critical data are encrypted with Customer Managed Key
+- `checkov_CKV2_AZURE_16/` - Ensure that MySQL server enables customer-managed key for encryption
+- `checkov_CKV2_AZURE_27/` - Ensure Azure AD authentication is enabled for Azure SQL (MSSQL)
+- `checkov_CKV2_AZURE_29/` - Ensure AKS cluster has Azure CNI networking enabled
+- `checkov_CKV2_AZURE_42/` - Ensure Azure PostgreSQL server is configured with private endpoint
+- `checkov_CKV2_AZURE_44/` - Ensure Azure MySQL server is configured with private endpoint
+- `checkov_CKV2_AZURE_7/` - Ensure that Azure Active Directory Admin is configured
+- `checkov_CKV_ALI_1/` - Alibaba Cloud OSS bucket accessible to public
+- `checkov_CKV_ALI_4/` - Ensure Action Trail Logging for all regions
+- `checkov_CKV_ALI_5/` - Ensure Action Trail Logging for all events
+- `checkov_CKV_ALI_6/` - Ensure OSS bucket is encrypted with Customer Master Key
+- `checkov_CKV_ALI_9/` - Ensure database instance is not public
+- `checkov_CKV_AWS_130/` - Ensure VPC subnets do not assign public IP by default
+- `checkov_CKV_AWS_136/` - Ensure that ECR repositories are encrypted using KMS
+- `checkov_CKV_AWS_145/` - Ensure that S3 buckets are encrypted with KMS by default
+- `checkov_CKV_AWS_163/` - Ensure ECR image scanning on push is enabled
+- `checkov_CKV_AWS_17/` - Ensure all data stored in RDS is not publicly accessible
+- `checkov_CKV_AWS_173/` - Check encryption settings for Lambda environmental variable
+- `checkov_CKV_AWS_186/` - Ensure S3 bucket Object is encrypted by KMS using a customer managed Key (CMK)
+- `checkov_CKV_AWS_189/` - Ensure EBS Volume is encrypted by KMS using a customer managed Key (CMK)
+- `checkov_CKV_AWS_24/` - Ensure no security groups allow ingress from 0.0.0.0:0 to port 22
+- `checkov_CKV_AWS_247/` - Ensure all data stored in the Elasticsearch is encrypted with a CMK
+- `checkov_CKV_AWS_260/` - Ensure no security groups allow ingress from 0.0.0.0:0 to port 80
+- `checkov_CKV_AWS_272/` - Ensure AWS Lambda function is configured to validate code-signing
+- `checkov_CKV_AWS_279/` - Ensure Neptune snapshot is securely encrypted
+- `checkov_CKV_AWS_280/` - Ensure Neptune snapshot is encrypted by KMS using a customer managed Key (CMK)
+- `checkov_CKV_AWS_3/` - Ensure all data stored in the EBS is securely encrypted
+- `checkov_CKV_AWS_317/` - Ensure Elasticsearch Domain Audit Logging is enabled
+- `checkov_CKV_AWS_318/` - Ensure Elasticsearch domains are configured with at least three dedicated master nodes for HA
+- `checkov_CKV_AWS_327/` - Ensure RDS Clusters are encrypted using KMS CMKs
+- `checkov_CKV_AWS_347/` - Ensure Neptune is encrypted by KMS using a customer managed Key (CMK)
+- `checkov_CKV_AWS_355/` - Ensure no IAM policies documents allow "*" as a statement's resource for restrictable actions
+- `checkov_CKV_AWS_356/` - Ensure no IAM policies documents allow "*" as a statement's resource for restrictable actions
+- `checkov_CKV_AWS_37/` - Ensure Amazon EKS control plane logging is enabled for all log types
+- `checkov_CKV_AWS_376/` - Ensure AWS Elastic Load Balancer listener uses TLS/SSL
+- `checkov_CKV_AWS_38/` - Ensure Amazon EKS public endpoint not accessible to 0.0.0.0/0
+- `checkov_CKV_AWS_382/` - Ensure no security groups allow egress from 0.0.0.0:0 to port -1
+- `checkov_CKV_AWS_39/` - Ensure Amazon EKS public endpoint disabled
+- `checkov_CKV_AWS_41/` - Ensure no hard coded AWS access key and secret key exists in provider
+- `checkov_CKV_AWS_44/` - Ensure Neptune storage is securely encrypted
+- `checkov_CKV_AWS_45/` - Ensure no hard-coded secrets exist in lambda environment
+- `checkov_CKV_AWS_46/` - Ensure no hard-coded secrets exist in EC2 user data
+- `checkov_CKV_AWS_5/` - Ensure all data stored in the Elasticsearch is securely encrypted at rest
+- `checkov_CKV_AWS_51/` - Ensure ECR Image Tags are immutable
+- `checkov_CKV_AWS_58/` - Ensure EKS Cluster has Secrets Encryption Enabled
+- `checkov_CKV_AWS_8/` - Ensure all data stored in the Launch configuration or instance Elastic Blocks Store is securely encrypted
+- `checkov_CKV_AWS_84/` - Ensure Elasticsearch Domain Logging is enabled
+- `checkov_CKV_AWS_96/` - Ensure all data stored in Aurora is securely encrypted at rest
+- `checkov_CKV_AZURE_113/` - Ensure that SQL server disables public network access
+- `checkov_CKV_AZURE_114/` - Ensure that key vault secrets have "content_type" set
+- `checkov_CKV_AZURE_117/` - Ensure that AKS uses disk encryption set
+- `checkov_CKV_AZURE_130/` - Ensure that PostgreSQL server enables infrastructure encryption
+- `checkov_CKV_AZURE_141/` - Ensure AKS local admin account is disabled
+- `checkov_CKV_AZURE_147/` - Ensure PostgreSQL is using the latest version of TLS encryption
+- `checkov_CKV_AZURE_15/` - Ensure web app is using the latest version of TLS encryption
+- `checkov_CKV_AZURE_151/` - Ensure Windows VM enables encryption
+- `checkov_CKV_AZURE_168/` - Ensure Azure Kubernetes Cluster (AKS) nodes should use a minimum number of 50 pods.
+- `checkov_CKV_AZURE_171/` - Ensure AKS cluster upgrade channel is chosen
+- `checkov_CKV_AZURE_172/` - Ensure autorotation of Secrets Store CSI Driver secrets for AKS clusters
+- `checkov_CKV_AZURE_189/` - Ensure that Azure Key Vault disables public network access
+- `checkov_CKV_AZURE_2/` - Ensure Azure managed disk has encryption enabled
+- `checkov_CKV_AZURE_217/` - Ensure Azure Application gateways listener that allow connection requests over HTTP
+- `checkov_CKV_AZURE_218/` - Ensure Application Gateway defines secure protocols for in transit communication
+- `checkov_CKV_AZURE_227/` - Ensure that the AKS cluster encrypt temp disks, caches, and data flows between Compute and Storage resources
+- `checkov_CKV_AZURE_251/` - Ensure Azure Virtual Machine disks are configured without public network access
+- `checkov_CKV_AZURE_27/` - Ensure that 'Email service and co-administrators' is 'Enabled' for MSSQL servers
+- `checkov_CKV_AZURE_28/` - Ensure 'Enforce SSL connection' is set to 'ENABLED' for MySQL Database Server
+- `checkov_CKV_AZURE_29/` - Ensure 'Enforce SSL connection' is set to 'ENABLED' for PostgreSQL Database Server
+- `checkov_CKV_AZURE_36/` - Ensure 'Trusted Microsoft Services' is enabled for Storage Account access
+- `checkov_CKV_AZURE_4/` - Ensure AKS logging to Azure Monitoring is Configured
+- `checkov_CKV_AZURE_41/` - Ensure that the expiration date is set on all secrets
+- `checkov_CKV_AZURE_44/` - Ensure Storage Account is using the latest version of TLS encryption
+- `checkov_CKV_AZURE_52/` - Ensure MSSQL is using the latest version of TLS encryption
+- `checkov_CKV_AZURE_53/` - Ensure 'public network access enabled' is set to 'False' for mySQL servers
+- `checkov_CKV_AZURE_54/` - Ensure MySQL is using the latest version of TLS encryption
+- `checkov_CKV_AZURE_59/` - Ensure that Storage accounts disallow public access
+- `checkov_CKV_AZURE_6/` - Ensure AKS has an API Server Authorized IP Ranges enabled
+- `checkov_CKV_AZURE_68/` - Ensure that PostgreSQL server disables public network access
+- `checkov_CKV_AZURE_93/` - Ensure that managed disks use a specific set of disk encryption sets for the customer-managed key encryption
+- `checkov_CKV_GCP_10/` - Ensure 'Automatic node upgrade' is enabled for Kubernetes Clusters
+- `checkov_CKV_GCP_106/` - Ensure Google compute firewall ingress does not allow unrestricted http port 80 access
+- `checkov_CKV_GCP_111/` - Ensure GCP PostgreSQL logs SQL statements
+- `checkov_CKV_GCP_114/` - Ensure public access prevention is enforced on Cloud Storage bucket
+- `checkov_CKV_GCP_15/` - Ensure that BigQuery datasets are not anonymously or publicly accessible
+- `checkov_CKV_GCP_18/` - Ensure GKE Control Plane is not public
+- `checkov_CKV_GCP_28/` - Ensure that Cloud Storage bucket is not anonymously or publicly accessible
+- `checkov_CKV_GCP_3/` - Ensure Google compute firewall ingress does not allow unrestricted rdp access
+- `checkov_CKV_GCP_32/` - Ensure 'Block Project-wide SSH keys' is enabled for VM instances
+- `checkov_CKV_GCP_35/` - Ensure 'Enable connecting to serial ports' is not enabled for VM Instance
+- `checkov_CKV_GCP_37/` - Ensure VM disks for critical VMs are encrypted with Customer Supplied Encryption Keys (CSEK)
+- `checkov_CKV_GCP_38/` - Ensure VM disks for critical VMs are encrypted with Customer Supplied Encryption Keys (CSEK)
+- `checkov_CKV_GCP_39/` - Ensure Compute instances are launched with Shielded VM enabled
+- `checkov_CKV_GCP_40/` - Ensure that Compute instances do not have public IP addresses
+- `checkov_CKV_GCP_60/` - Ensure Cloud SQL database does not have public IP
+- `checkov_CKV_GCP_61/` - Enable VPC Flow Logs and Intranode Visibility
+- `checkov_CKV_GCP_62/` - Bucket should log access
+- `checkov_CKV_GCP_75/` - Ensure Google compute firewall ingress does not allow unrestricted FTP access
+- `checkov_CKV_GCP_78/` - Ensure Cloud storage has versioning enabled
+- `checkov_CKV_GCP_81/` - Ensure Big Query Datasets are encrypted with Customer Supplied Encryption Keys (CSEK)
+- `checkov_CKV_GCP_88/` - Ensure Google compute firewall ingress does not allow unrestricted mysql access
+- `checkov_CKV_GCP_9/` - Ensure 'Automatic node repair' is enabled for Kubernetes Clusters
+- `checkov_CKV_OCI_10/` - Ensure OCI Object Storage is not Public
+- `checkov_CKV_OCI_9/` - Ensure OCI Object Storage is encrypted with Customer Managed Key
+- `checkov_CKV_SECRET_2/` - AWS Access Key
+- `checkov_CKV_SECRET_6/` - Base64 High Entropy String
+- `rule_SEC-AWS-KEY/` - AWS access key committed to source

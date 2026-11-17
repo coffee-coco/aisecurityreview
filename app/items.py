@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import sqlite3
 
 from . import db
 from .catalog import Catalog, base_control
@@ -17,10 +16,10 @@ MIT_FIELDS = ("title", "description", "state", "status", "owner", "due_date", "n
 KIND_PREFIX = {"question": "Q", "risk": "R", "recommendation": "REC"}
 
 
-def _links(conn: sqlite3.Connection, review_id: int) -> list[tuple[int, int]]:
+def _links(conn: db.Connection, review_id: int) -> list[tuple[int, int]]:
     return [(r[0], r[1]) for r in conn.execute(
         "SELECT im.item_id, im.mitigation_id FROM item_mitigations im JOIN items x ON x.id = im.item_id "
-        "WHERE x.review_id = ?", (review_id,))]
+        "WHERE x.review_id = %s", (review_id,))]
 
 
 def serialize_item(row: dict, cat: Catalog, mit_ids: list[int], label: str) -> dict:
@@ -41,8 +40,8 @@ def serialize_item(row: dict, cat: Catalog, mit_ids: list[int], label: str) -> d
     return d
 
 
-def load_items(conn: sqlite3.Connection, review_id: int, cat: Catalog) -> list[dict]:
-    rows = [dict(r) for r in conn.execute("SELECT * FROM items WHERE review_id = ? ORDER BY id", (review_id,))]
+def load_items(conn: db.Connection, review_id: int, cat: Catalog) -> list[dict]:
+    rows = [dict(r) for r in conn.execute("SELECT * FROM items WHERE review_id = %s ORDER BY id", (review_id,))]
     links: dict[int, list[int]] = {}
     for item_id, mid in _links(conn, review_id):
         links.setdefault(item_id, []).append(mid)
@@ -73,11 +72,11 @@ def serialize_mitigation(row: dict, item_ids: list[int]) -> dict:
     return d
 
 
-def load_mitigations(conn: sqlite3.Connection, review_id: int) -> list[dict]:
+def load_mitigations(conn: db.Connection, review_id: int) -> list[dict]:
     links: dict[int, list[int]] = {}
     for item_id, mid in _links(conn, review_id):
         links.setdefault(mid, []).append(item_id)
-    rows = conn.execute("SELECT * FROM mitigations WHERE review_id = ? ORDER BY id", (review_id,))
+    rows = conn.execute("SELECT * FROM mitigations WHERE review_id = %s ORDER BY id", (review_id,))
     return [serialize_mitigation(dict(r), sorted(links.get(r["id"], []))) for r in rows]
 
 
@@ -101,7 +100,7 @@ def item_controls(item: dict, cat: Catalog) -> set[str]:
     return ctrls
 
 
-def create_item(conn: sqlite3.Connection, review_id: int, data: dict) -> int:
+def create_item(conn: db.Connection, review_id: int, data: dict) -> int:
     ts = db.now()
     data = {k: v for k, v in data.items() if k in ITEM_FIELDS + ("subcategory_id", "library_ref", "source")}
     kind = data.get("kind", "question")
@@ -112,12 +111,13 @@ def create_item(conn: sqlite3.Connection, review_id: int, data: dict) -> int:
     data = {k: int(v) if isinstance(v, bool) else v for k, v in data.items()}
     cols = list(data) + ["review_id", "created_at", "updated_at"]
     vals = list(data.values()) + [review_id, ts, ts]
-    cur = conn.execute(f"INSERT INTO items ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})", vals)
+    item_id = conn.execute(f"INSERT INTO items ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))}) "
+                           "RETURNING id", vals).fetchone()["id"]
     db.touch(conn, review_id)
-    return cur.lastrowid
+    return item_id
 
 
-def create_mitigation(conn: sqlite3.Connection, review_id: int, data: dict) -> int:
+def create_mitigation(conn: db.Connection, review_id: int, data: dict) -> int:
     ts = db.now()
     row = {
         "title": (data.get("title") or "").strip()[:300] or "Untitled control",
@@ -131,15 +131,15 @@ def create_mitigation(conn: sqlite3.Connection, review_id: int, data: dict) -> i
         "source": data.get("source") or "manual",
     }
     cols = list(row) + ["review_id", "created_at", "updated_at"]
-    cur = conn.execute(f"INSERT INTO mitigations ({', '.join(cols)}) VALUES ({', '.join('?' * len(cols))})",
-                       list(row.values()) + [review_id, ts, ts])
+    mid = conn.execute(f"INSERT INTO mitigations ({', '.join(cols)}) VALUES ({', '.join(['%s'] * len(cols))}) "
+                       "RETURNING id", list(row.values()) + [review_id, ts, ts]).fetchone()["id"]
     db.touch(conn, review_id)
-    return cur.lastrowid
+    return mid
 
 
-def mitigation_from_library(conn: sqlite3.Connection, review_id: int, lib_id: str, source: str = "library") -> int:
+def mitigation_from_library(conn: db.Connection, review_id: int, lib_id: str, source: str = "library") -> int:
     """Reuse the register entry for a library control if it exists, otherwise create it."""
-    row = conn.execute("SELECT id FROM mitigations WHERE review_id = ? AND library_ref = ?",
+    row = conn.execute("SELECT id FROM mitigations WHERE review_id = %s AND library_ref = %s",
                        (review_id, lib_id)).fetchone()
     if row:
         return row["id"]
@@ -148,6 +148,6 @@ def mitigation_from_library(conn: sqlite3.Connection, review_id: int, lib_id: st
                                                "nist": m["nist"], "library_ref": lib_id, "source": source})
 
 
-def link(conn: sqlite3.Connection, item_id: int, mitigation_id: int) -> None:
-    conn.execute("INSERT OR IGNORE INTO item_mitigations (item_id, mitigation_id) VALUES (?, ?)",
+def link(conn: db.Connection, item_id: int, mitigation_id: int) -> None:
+    conn.execute("INSERT INTO item_mitigations (item_id, mitigation_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
                  (item_id, mitigation_id))

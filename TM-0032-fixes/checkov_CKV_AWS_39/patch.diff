@@ -1,0 +1,10 @@
+--- a/terraform/aws/eks.tf
++++ b/terraform/aws/eks.tf
+@@ -121,6 +121,7 @@
+ 
+   vpc_config {
+     endpoint_private_access = true
++    endpoint_public_access  = false
+     subnet_ids              = ["${aws_subnet.eks_subnet1.id}", "${aws_subnet.eks_subnet2.id}"]
+   }
+ 

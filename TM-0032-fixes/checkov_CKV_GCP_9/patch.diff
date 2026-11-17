@@ -1,0 +1,11 @@
+--- a/terraform/gcp/gke.tf
++++ b/terraform/gcp/gke.tf
+@@ -28,4 +28,8 @@
+   node_config {
+     image_type = "Ubuntu"
+   }
++
++  management {
++    auto_repair = true
++  }
+ }

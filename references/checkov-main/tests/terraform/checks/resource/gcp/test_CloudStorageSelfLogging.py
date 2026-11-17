@@ -1,0 +1,51 @@
+import unittest
+from pathlib import Path
+
+from checkov.runner_filter import RunnerFilter
+from checkov.terraform.checks.resource.gcp.CloudStorageSelfLogging import check
+from checkov.terraform.runner import Runner
+
+
+class TestCloudStorageSelfLogging(unittest.TestCase):
+    def test(self):
+        # given
+        test_files_dir = Path(__file__).parent / "example_CloudStorageSelfLogging"
+
+        # when
+        report = Runner().run(root_folder=str(test_files_dir), runner_filter=RunnerFilter(checks=[check.id]))
+
+        # then
+        summary = report.get_summary()
+
+        passing_resources = {
+            "google_storage_bucket.pass",
+        }
+
+        failing_resources = {
+            "google_storage_bucket.fail",
+        }
+
+        passed_check_resources = {c.resource for c in report.passed_checks}
+        failed_check_resources = {c.resource for c in report.failed_checks}
+
+        self.assertEqual(summary["passed"], 1)
+        self.assertEqual(summary["failed"], 1)
+        self.assertEqual(summary["skipped"], 0)
+        self.assertEqual(summary["parsing_errors"], 0)
+
+        self.assertEqual(passing_resources, passed_check_resources)
+        self.assertEqual(failing_resources, failed_check_resources)
+
+    def test_computed_log_bucket(self):
+        # When log_bucket is a computed value it is absent from the plan JSON; expect UNKNOWN
+        from checkov.common.models.enums import CheckResult
+        resource_conf = {
+            "name": ["my-bucket"],
+            "logging": [{"log_object_prefix": ["my-prefix/"]}],
+        }
+        result = check.scan_resource_conf(conf=resource_conf)
+        self.assertEqual(CheckResult.UNKNOWN, result)
+
+
+if __name__ == '__main__':
+    unittest.main()

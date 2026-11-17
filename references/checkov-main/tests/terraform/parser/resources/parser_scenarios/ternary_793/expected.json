@@ -1,0 +1,39 @@
+{
+  "{\"file_path\": \"main.tf\", \"tf_source_modules\": null}": {
+    "variable": [
+      {
+        "metadata_http_tokens_required": {
+          "type": ["bool"],
+          "default": [true],
+          "description": ["Whether or not the metadata service requires session tokens"],
+          "__start_line__": 1,
+          "__end_line__": 5,
+          "__address__": "metadata_http_tokens_required"
+        }
+      }
+    ],
+    "resource": [
+      {
+        "aws_instance": {
+          "foo": {
+            "ami": ["ami-005e54dee72cc1d00"],
+            "instance_type": ["t2.micro"],
+            "root_block_device": [
+              {
+                "encrypted": [true]
+              }
+            ],
+            "metadata_options": [
+              {
+                "http_tokens": ["required"]
+              }
+            ],
+            "__start_line__": 7,
+            "__end_line__": 18,
+            "__address__": "aws_instance.foo"
+          }
+        }
+      }
+    ]
+  }
+}
