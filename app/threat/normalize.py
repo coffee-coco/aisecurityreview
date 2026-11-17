@@ -12,6 +12,7 @@ from ..library import mitigation_library
 from ..profile import similarity
 from .mermaid import attack_tree_mermaid, dfd_mermaid, safe_id
 from .references import allowed_ids, clean_code, clean_codes, select_cards
+from .verify import annotate_tree, carry, clean_attack, status_counts, unverified, verified_ids
 
 CATEGORIES = ("Spoofing", "Tampering", "Repudiation", "Information Disclosure", "Denial of Service",
               "Elevation of Privilege")
@@ -154,16 +155,23 @@ def normalize_threat_model(raw: dict, *, app_type: str, cards: list[str], csf_id
             **{f: clean_codes(f, t.get(f), allowed) for f in ("mitre_attack", "mitre_atlas")},
             "csf": _ref_ids(t.get("csf"), csf_ids)[:5],
             "evidence": _evidence_refs(t.get("evidence"), known_files),
+            **clean_attack(t),
             "item_id": _link(t.get("item_id")) if keep_links else None,
         })
     _assign_ids(threats, "T")
     _carry_links(threats, (prior or {}).get("threats") or [], "item_id", by_id, keep_links)
+    if keep_links:  # reviewer edit: verification survives only while the attack path is unchanged
+        carry(threats, (prior or {}).get("threats") or [])
+    else:  # AI output: the generator verifies against the code next; never trust a status from the model
+        for t in threats:
+            t["verification"] = unverified(["Not verified yet."])
     out = {
         "summary": _s(raw.get("summary"), 3000), "app_type": app_type,
         "assumptions": _strs(raw.get("assumptions"), 20, 500),
         "improvement_suggestions": _strs(raw.get("improvement_suggestions"), 20, 500),
         "threats": threats[:80],
     }
+    out["verification"] = status_counts(out["threats"])
     if keep_links and (prior or {}).get("inputs"):  # reviewer edit: keep the record of what the run was based on
         out["inputs"] = prior["inputs"]
     return out
@@ -190,7 +198,7 @@ def _flatten_tree(nodes) -> list[dict]:
     return out
 
 
-def normalize_attack_tree(raw: dict, threat_ids: set[str]) -> dict:
+def normalize_attack_tree(raw: dict, threat_ids: set[str], threats: list[dict] | None = None) -> dict:
     flat = _flatten_tree(raw.get("nodes"))
     idmap: dict[str, str] = {}
     records = []
@@ -248,6 +256,8 @@ def normalize_attack_tree(raw: dict, threat_ids: set[str]) -> dict:
     goal = _s(raw.get("goal"), 300) or next((n["label"] for n in nodes if n["type"] == "goal"), "")
     data = {"goal": goal, "nodes": nodes}
     data["mermaid"] = attack_tree_mermaid(data)
+    if threats is not None:  # verification status of every node, from the threats' attack paths
+        annotate_tree(data, threats)
     return data
 
 
@@ -433,13 +443,13 @@ def normalize_artifact(kind: str, data: dict, *, app_type: str, prior: dict, reg
         return normalize_threat_model(data, app_type=app_type, cards=select_cards(app_type),
                                       csf_ids=set(get_catalog().subcategories), prior=tm, keep_links=True)
     if kind == "attack_tree":
-        return normalize_attack_tree(data, threat_ids)
+        return normalize_attack_tree(data, threat_ids, tm.get("threats") or [])
     if kind == "dfd":
         return normalize_dfd(data)
     if kind == "mitigations":
         return normalize_mitigations(data, threat_ids=threat_ids, cat=get_catalog(), lib=mitigation_library(),
                                      register=register, prior=(prior.get("mitigations") or {}).get("data"),
                                      keep_links=True)
-    if kind == "dread":
-        return normalize_dread(data, threat_ids)
+    if kind == "dread":  # only threats with a verified attack path are scored
+        return normalize_dread(data, verified_ids(tm.get("threats") or []))
     return normalize_test_cases(data, threat_ids)

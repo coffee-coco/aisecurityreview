@@ -86,13 +86,15 @@ def build_context(review_id: int, llm: LLM | None) -> dict:
     ctx_chars = llm.context_chars if llm else 60_000
     roots = _code_roots(review_id)
     source = None
+    source_paths: dict = {}
     if roots:
         inv, fresh = _code_inventory(review, roots)
         if fresh:  # code was linked after (or without) a code review: use the new inventory everywhere
             review = {**review, "code_review": {**(review.get("code_review") or {}), "inventory": inv}}
         hit = {e["file"] for f in (review.get("code_review") or {}).get("findings") or []
                for e in f.get("evidence") or []}
-        source = gather_source(inv, dict(iter_sources(roots)), int(ctx_chars * 0.4), hit)
+        source_paths = dict(iter_sources(roots))
+        source = gather_source(inv, source_paths, int(ctx_chars * 0.4), hit)
     app_type = detect_app_type(review)
     design = review.get("design") or {}
     code = review.get("code_review") or {}
@@ -141,7 +143,20 @@ def build_context(review_id: int, llm: LLM | None) -> dict:
     inputs = assess_inputs(review, code_docs, docs_count, bool(brief.get("data_flow_diagram")), source)
     return {"review": review, "app_type": app_type, "brief": brief, "documents": "".join(parts),
             "csf_scope": csf_scope, "items": items, "mitigations": mits, "source": source, "inputs": inputs,
-            "known_files": [f["path"] for f in (code.get("inventory") or {}).get("file_list") or []] if source else []}
+            "known_files": [f["path"] for f in (code.get("inventory") or {}).get("file_list") or []] if source else [],
+            "source_paths": source_paths, "routes": (code.get("inventory") or {}).get("routes") or []}
+
+
+def verification_inputs(review_id: int) -> tuple[dict, list[dict]]:
+    """(display path -> file, HTTP routes) of the linked code, for re-verifying attack paths without an LLM.
+    Blocking; call it with ``asyncio.to_thread`` from async code."""
+    roots = _code_roots(review_id)
+    if not roots:
+        return {}, []
+    with db.tx() as conn:
+        review = _get_review(conn, review_id)
+    inv, _ = _code_inventory(review, roots)
+    return dict(iter_sources(roots)), inv.get("routes") or []
 
 
 def render_context(ctx: dict, documents: bool = True, source: bool | None = None) -> str:

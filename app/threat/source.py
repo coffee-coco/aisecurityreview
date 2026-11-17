@@ -14,12 +14,40 @@ from ..code.workspace import read_text
 
 PER_FILE_CHARS = 14_000
 README_CHARS = 6_000
+PROMPT_CHARS = 12_000
 MAX_TREE = 400
 LOCK_FILES = re.compile(r"(^|/)(package-lock\.json|yarn\.lock|pnpm-lock\.yaml|poetry\.lock|Pipfile\.lock|"
                         r"composer\.lock|Cargo\.lock|go\.sum|.*\.min\.(js|css))$", re.I)
+README = re.compile(r"readme", re.I)
+# Prompts, system instructions and prompt templates. For an AI system these are the model's instructions - as much
+# a part of the implementation as the code that sends them - but they are usually Markdown or plain text, which
+# would otherwise be skipped as documentation.
+PROMPT_FILE = re.compile(
+    r"(?:(?:^|/)(?:prompts?|system[_-]?prompts?|instructions|personas?|templates/(?:llm|ai|agents?))/[^/]+"
+    r"|(?:^|/)[^/]*(?:prompt|instruction|persona|system[_-]?message)[^/]*)"
+    r"\.(?:md|mdx|txt|prompt|j2|jinja2?|tmpl|tpl|hbs|mustache|ya?ml|json|xml)$", re.I)
 EXTRA_BOOST = ((re.compile(r"(^|/)readme(\.\w+)?$", re.I), 6),
+               (PROMPT_FILE, 6),
                (re.compile(r"openapi|swagger|\.proto$|schema\.(graphql|json|sql)$", re.I), 4),
                (re.compile(r"(^|/)(dockerfile|docker-compose[\w.-]*\.ya?ml)$|\.tf$|(^|/)k8s/|helm", re.I), 3))
+
+
+def is_prompt_file(path: str) -> bool:
+    return bool(PROMPT_FILE.search(path)) and not LOCK_FILES.search(path)
+
+
+def _wanted(f: dict) -> bool:
+    """Code, configuration, READMEs and prompt files; not other prose or lock files."""
+    path, lang = f["path"], f["lang"]
+    if LOCK_FILES.search(path):
+        return False
+    if README.search(path) or is_prompt_file(path):
+        return True
+    return lang in CODE_LANGS_FOR_AI and lang != "Markdown"
+
+
+def _cap(path: str) -> int:
+    return README_CHARS if README.search(path) else PROMPT_CHARS if is_prompt_file(path) else PER_FILE_CHARS
 
 
 def _rank(f: dict, hit_files: set[str]) -> float:
@@ -30,10 +58,7 @@ def _rank(f: dict, hit_files: set[str]) -> float:
 def gather_source(inv: dict, abs_paths: dict[str, Path], budget: int, hit_files: set[str] | None = None) -> dict:
     """Return {"tree", "text", "stats"} for the highest-value files that fit ``budget`` characters."""
     hit_files = hit_files or set()
-    files = [f for f in inv.get("file_list") or []
-             if not LOCK_FILES.search(f["path"])
-             and (f["lang"] in CODE_LANGS_FOR_AI or re.search(r"readme", f["path"], re.I))
-             and not (f["lang"] == "Markdown" and not re.search(r"readme", f["path"], re.I))]
+    files = [f for f in inv.get("file_list") or [] if _wanted(f)]
     files.sort(key=lambda f: (-_rank(f, hit_files), f["path"]))
     parts, used, included, trimmed = [], 0, [], 0
     for f in files:
@@ -43,7 +68,7 @@ def gather_source(inv: dict, abs_paths: dict[str, Path], budget: int, hit_files:
         text = read_text(p) if p else None
         if not text or not text.strip():
             continue
-        cap = README_CHARS if re.search(r"readme", f["path"], re.I) else PER_FILE_CHARS
+        cap = _cap(f["path"])
         if len(text) > cap:
             text, trimmed = text[:cap] + "\n[... file truncated ...]", trimmed + 1
         block = f"\n===== FILE: {f['path']} =====\n{_numbered(text)}\n"
@@ -53,9 +78,11 @@ def gather_source(inv: dict, abs_paths: dict[str, Path], budget: int, hit_files:
         used += len(block)
         included.append(f["path"])
     tree = [f"{f['path']} ({f['lines']} lines)" for f in inv.get("file_list") or []][:MAX_TREE]
+    prompts = [f["path"] for f in files if is_prompt_file(f["path"])]
     return {"tree": tree, "text": "".join(parts), "included": included,
             "stats": {"files_total": len(files), "files_included": len(included),
-                      "files_trimmed": trimmed, "chars": used, "budget": budget}}
+                      "files_trimmed": trimmed, "chars": used, "budget": budget,
+                      "prompt_files": len(prompts), "prompt_files_included": sum(p in included for p in prompts)}}
 
 
 def assess_inputs(review: dict, code_docs: list[dict], docs_count: int, has_dfd: bool,
@@ -75,8 +102,9 @@ def assess_inputs(review: dict, code_docs: list[dict], docs_count: int, has_dfd:
     warnings: list[str] = []
     if not code_docs:
         warnings.append("No source code or git repository is linked, so threats are inferred from the description "
-                        "and documents only. Link a repository or upload code for a threat model grounded in the "
-                        "real implementation.")
+                        "and documents only, and none can have a verified attack path: every threat will be "
+                        "Unverified (hypothetical) and left out of DREAD, risk ratings and reports. Link a "
+                        "repository or upload code for a threat model grounded in the real implementation.")
     elif files and files < 5:
         warnings.append(f"Only {files} source file(s) are linked, which is unlikely to show the whole system.")
     if source:
@@ -87,6 +115,10 @@ def assess_inputs(review: dict, code_docs: list[dict], docs_count: int, has_dfd:
                             f"chosen. A larger-context model reads more.")
         if st["files_trimmed"]:
             warnings.append(f"{st['files_trimmed']} large file(s) were cut to their first {PER_FILE_CHARS:,} characters.")
+        missed = st.get("prompt_files", 0) - st.get("prompt_files_included", 0)
+        if missed > 0:
+            warnings.append(f"{missed} of {st['prompt_files']} prompt file(s) did not fit the AI model's context, so "
+                            f"threats about the model's instructions may be incomplete.")
     if not docs_count and not design.get("summary"):
         warnings.append("No architecture or design document is uploaded, so intended trust boundaries and "
                         "external integrations are inferred from code only." if code_docs else

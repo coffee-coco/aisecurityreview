@@ -5,6 +5,7 @@ import json
 
 from .. import db
 from . import KINDS
+from .verify import annotate_tree
 
 
 def _row(row: dict) -> dict:
@@ -25,6 +26,9 @@ def get_artifacts(conn: db.Connection, review_id: int) -> dict[str, dict | None]
     for row in conn.execute("SELECT * FROM threat_artifacts WHERE review_id = %s", (review_id,)):
         if row["kind"] in out:
             out[row["kind"]] = _row(row)
+    if out.get("attack_tree") and (out["attack_tree"]["data"] or {}).get("nodes"):
+        # node verification follows the current threat model (re-verification, edits), so derive it on read
+        annotate_tree(out["attack_tree"]["data"], ((out.get("threat_model") or {}).get("data") or {}).get("threats") or [])
     return out
 
 

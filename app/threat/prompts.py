@@ -12,8 +12,9 @@ Method:
 2. Treat every external service (third-party API, hosted model, managed database or queue, identity provider)
    as a component outside the trust boundary: requests to it and responses from it cross that boundary, and it
    can disclose, alter or withhold them independently of the system's own controls.
-3. For each component and boundary-crossing flow consider all six categories. Aim for 3-4 credible threats per
-   category where applicable (typically 15-30 in total). Do not pad with generic threats.
+3. For each component and boundary-crossing flow consider all six categories. Report the credible threats you can
+   support (typically 10-25 in total); a threat proven in the code is worth more than several generic ones. Do
+   not pad with generic threats.
 4. Tailor every scenario to the actual technologies, data types, classification and exposure, and name the
    affected component. Use code review findings, HTTP routes, design concerns and existing risks as evidence.
    When a "Source code" section is provided it is the real implementation and outranks the description and
@@ -21,10 +22,30 @@ Method:
    secrets handling, outbound calls and (for AI systems) prompt, tool and model-output handling in it, and base
    each threat on what the code actually does or fails to do. Never describe a control as present or absent
    unless the code or documents show it; record such uncertainty under assumptions. Files not shown are
-   unseen - do not infer their contents.
+   unseen - do not infer their contents. A file that appears only in the file tree, or is only named in a
+   document, was not read: do not quote it or describe what it says.
+   Prompt files (system prompts, agent instructions, prompt templates) are included in the Source code section
+   for AI systems. They are the model's actual instructions: base threats about prompt injection, instruction
+   conflicts, excessive agency, leaked secrets or policy in prompts, and unsafe output handling on what they say,
+   and cite them as evidence.
 5. Apply the reference cards below for additional threat classes and identifiers. Only use identifiers that
    appear in the cards; leave a field null or empty rather than guessing.
 6. Existing controls in the control register lower likelihood but do not remove a threat.
+7. Prove each threat can be attacked. A threat is only accepted as verified when you trace a concrete attack path
+   through the Source code section and every step is checked against the real files:
+   - attack_path: ordered steps. The first is "entry" (where attacker-controlled input enters: an HTTP route or
+     request field, a message, socket or event, an uploaded or fetched document, a user message or tool argument
+     to an LLM). Then any "flow" steps that carry it onward, and the last is "sink" (the code that does the
+     damage: the query, command, file write, model call, tool action, response or log).
+   - Each step gives the file exactly as shown, its line, and "code": 1-6 lines copied VERBATIM from that file
+     (without the line-number gutter). Code that cannot be found in the file fails verification.
+   - controls_review.checked: which controls you looked for along the path (authentication, authorisation, input
+     validation, encoding, parameterisation, guardrails, rate limits...) and where; controls_review.blocking: any
+     control in the code that stops this attack, with its file, line and verbatim code (the threat is then
+     recorded as mitigated).
+   - "The system uses AI" or "this could happen" is not an attack path. When you cannot trace one through the
+     code shown, prefer leaving the threat out; include it only if it is a serious design-level risk, with an
+     empty attack_path - it will be marked Unverified (hypothetical) and excluded from scoring and reports.
 
 Field guidance:
 - title: short (max 12 words), naming the threat and the asset.
@@ -45,7 +66,11 @@ Return ONLY JSON:
  "threats": [{"id": "T1", "category": "Spoofing|Tampering|Repudiation|Information Disclosure|Denial of Service|Elevation of Privilege",
               "title": "...", "component": "affected component or flow", "scenario": "specific attack scenario in this system",
               "impact": "consequence for the business, users and data", "likelihood_hint": "low|medium|high",
-              {fields}"csf": [], "evidence": ["path/file.ext:LINE"]}]}"""
+              {fields}"csf": [], "evidence": ["path/file.ext:LINE"],
+              "attack_path": [{"step": "entry|flow|sink", "file": "path/file.ext", "line": 42,
+                               "code": "verbatim line(s) from the file", "explains": "what happens here"}],
+              "controls_review": {"checked": "controls looked for along the path and where",
+                                  "blocking": [{"file": "...", "line": 0, "code": "...", "explains": "..."}]}}]}"""
 
 ATTACK_TREE_SYSTEM = """You are a principal security architect building an attack tree for a security design review.
 The root goal is the attacker's most damaging realistic objective against this system (e.g. "Exfiltrate customer
@@ -58,6 +83,11 @@ Rules:
 - ids are short and alphanumeric (G1, A1, B2...). children lists child node ids.
 - Leaves list the threat ids they realise in threat_ids; sub-goals may too. Every threat of the threat model
   should appear in at least one node where it plausibly contributes to the goal.
+- Build the main paths from threats whose attack_path_status is "verified": their attack_path is proven in the
+  code (entry → sink), so make each one a leaf and chain them into realistic routes to the goal. Threats that are
+  "unverified" or "mitigated" may only appear as their own clearly separate branches; never make a proven route
+  depend on them through an AND node. Each node's proof status is computed from its threats afterwards - a leaf
+  without a threat id can never be shown as proven, so give every leaf the threat it realises.
 - 15-40 nodes, depth 2-5, labels are short phrases (max 12 words).
 - Include at least 2 paths that chain across components or trust boundaries.
 Return ONLY JSON:
@@ -104,7 +134,8 @@ Return ONLY JSON:
                   "nist": ["IA-2"], "library_ref": "M-MFA", "priority": "high|medium|low"}]}"""
 
 DREAD_SYSTEM = """You are a principal security architect scoring the threats of a threat model with DREAD for a
-security design review. Score EVERY threat on each dimension from 0 to 10, specific to this system:
+security design review. Every threat given has a verified attack path (attack_path lists its entry, flow and sink
+in the code); score from that path. Score EVERY threat on each dimension from 0 to 10, specific to this system:
 - damage: harm if exploited (data sensitivity and classification, financial, regulatory, reputational, safety).
 - reproducibility: how reliably the attack succeeds once attempted.
 - exploitability: skill, access and resources needed (10 = trivial, unauthenticated, internet-facing).

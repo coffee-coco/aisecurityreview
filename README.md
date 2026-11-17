@@ -129,7 +129,35 @@ role in that workspace. Background jobs return a `job_id`; poll `GET /api/jobs/{
 mitigations, test cases, DREAD rationales, attack-tree nodes, design summary, review / threat-model details) carry a
 selection checkbox and a small red devil. Click the devil to argue an entry is wrong or not aligned with the
 application. The AI judges the challenge against the application's evidence (upheld / partly upheld / rejected /
-inconclusive), then you can apply its corrected text, write your own or remove the entry. Select one or many boxes to
+inconclusive), then you can apply its corrected text, write your own or remove the entry. When code is linked (on the
+threat model, or on threat models linked to the review), the judge is grounded in it without extra AI calls: AI
+dependencies and lines that call a model, prompt files, the file tree, conflicts with the profile (e.g. `uses_ai` unset
+but the code calls Gemini), and for every file the entry names whether it exists, an excerpt, or which files only
+mention it. An entry must have its premise (the LLM, the prompt file, the database) established by the evidence, and a
+threat must have a verified attack path (below): "the system uses AI" or "this could happen" is not enough, and an
+empty or silent context counts as unsupported rather than inconclusive.
+
+**Verified attack paths.** A threat counts only when it is proven attackable in the code. The threat generator must
+trace each threat as an attack path - an `entry` step where attacker-controlled input arrives, any `flow` steps and a
+`sink` step where the damage happens - quoting the code of every step verbatim, and record which controls it checked
+along the path. The app then checks the claim without AI: every quoted step must be found in the linked file (line
+numbers are corrected to where the code really is), the path must run entry → sink, the entry must be
+attacker-reachable (an HTTP route, request parsing, a message / socket / event consumer, a file or document read, an
+LLM message or tool input), and no control in the path may block it. Each threat is then **Verified**,
+**Unverified (hypothetical)** or **Mitigated** (a control found in the code blocks it). Unverified and mitigated threats
+stay visible, with the reasons, but are not scored by DREAD, are not promoted to risks (a reviewer can override one at a
+time, which is recorded on the risk and in the activity log), do not inform AI scoping, and are left out of reports and
+exports (`/threats/export.md?include_unverified=true` lists them separately). Hand edits that change an attack path
+reset it to unverified; **Re-verify against code** re-checks every threat after the code changes. With no code linked,
+nothing can be verified.
+
+**Proven attack trees.** Each attack-tree node gets a proof status from the threats it links to, recomputed whenever the
+tree is read: a leaf is *proven* when one of its threats has a verified attack path, an AND step only when every required
+step is proven, an OR step or the goal when any branch is. Proven routes are drawn red with bold edges (each proven leaf
+shows its entry → sink in the code), hypothetical ones grey and dashed, and blocked ones green. The tree view lists the
+proven attack paths from the goal down to the code, says whether the goal is reachable through one, and can draw only the
+proven routes; the Markdown export includes the same list.
+Select one or many boxes to
 run an **AI review** (a constructive check for accuracy and specificity) or a **devil's advocate** pass over all of them as a
 background job (`AI_BATCH_CONCURRENCY` AI calls in parallel), then apply, override or remove per entry. The review header's
 **Devil's advocate** button does this for a whole review: choose which risks, recommendations, controls, questions

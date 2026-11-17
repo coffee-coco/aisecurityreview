@@ -5,18 +5,19 @@ import { renderMermaid } from '../mermaid.js';
 import { cap, confirmDialog, debounce, esc, icon, ratingPill, timeAgo, toast } from '../ui.js';
 import { dropzone, wireDrop } from './upload.js';
 import { devil } from '../devil.js';
+import { VERIFY, attackPathBlock, statusOf, verifyBadge } from '../attack-path.js';
 
 const VIEWS = [
   { id: 'threat_model', label: 'Threat Model', icon: 'shield', needs: '', title: 'No threat model yet',
     about: 'Threats to this system in six categories — Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service and Elevation of Privilege — mapped to OWASP, MITRE and NIST CSF. Built from the review profile, design documents and the linked source code (git repository or upload), so threats can cite real files.' },
   { id: 'attack_tree', label: 'Attack Tree', icon: 'target', needs: 'threat_model', title: 'No attack tree yet',
-    about: 'How an attacker could reach their goal, broken down into AND / OR steps that link back to the threats.' },
+    about: 'How an attacker could reach their goal, broken down into AND / OR steps that link back to the threats. Steps backed by a verified attack path in the code are marked proven, so you can see which routes to the goal are real.' },
   { id: 'dfd', label: 'Data Flow Diagram', icon: 'layers', needs: '', title: 'No data flow diagram yet',
     about: 'External entities, processes, data stores and the flows between them, grouped by trust boundary. Generate it from the design, import an existing diagram, or build it by hand.' },
   { id: 'mitigations', label: 'Mitigations', icon: 'lock', needs: 'threat_model', title: 'No mitigations yet',
     about: 'Controls that address each threat, mapped to NIST SP 800-53 and the control library. Linked security reviews can adopt them as controls.' },
   { id: 'dread', label: 'DREAD', icon: 'zap', needs: 'threat_model', title: 'No DREAD scoring yet',
-    about: 'Each threat scored 0–10 for Damage, Reproducibility, Exploitability, Affected users and Discoverability to prioritise the work.' },
+    about: 'Each threat with a verified attack path scored 0–10 for Damage, Reproducibility, Exploitability, Affected users and Discoverability to prioritise the work. Unverified (hypothetical) and mitigated threats are not scored.' },
   { id: 'test_cases', label: 'Test Cases', icon: 'check', needs: 'threat_model', title: 'No test cases yet',
     about: 'Gherkin security test scenarios that verify each threat is mitigated.' },
 ];
@@ -56,7 +57,7 @@ function st(ctx) {
   if (!STATE.has(rid)) {
     STATE.set(rid, {
       rid, view: 'threat_model', data: null, err: '', jobs: {}, watching: new Set(),
-      cat: '', q: '', edit: null, editVals: {}, focus: null,
+      cat: '', vf: '', treeProven: false, q: '', edit: null, editVals: {}, focus: null,
       sort: { key: 'score', dir: -1 }, zoom: {}, refine: {}, dfdDraft: null,
     });
   }
@@ -208,8 +209,20 @@ async function save(S, kind, data, msg = 'Saved', onOk) {
     onOk?.();
     toast(msg);
     draw(S);
+    if (kind === 'threat_model') reload(S);  // the attack tree's proof status follows the threats
     return true;
   } catch (e) { toast(e.message, 'err'); return false; }
+}
+
+async function reverify(S, btn) {
+  btn.disabled = true;
+  try {
+    const res = await api.post(`/api/reviews/${S.rid}/threats/verify`, {});
+    S.data.artifacts = res.artifacts;
+    const v = res.verification || {};
+    toast(`Attack paths re-verified: ${v.verified || 0} verified, ${v.unverified || 0} unverified, ${v.mitigated || 0} mitigated`);
+    draw(S);
+  } catch (e) { toast(e.message, 'err'); btn.disabled = false; }
 }
 
 async function removeArtifact(S, kind) {
@@ -367,6 +380,7 @@ function viewThreats(S, box) {
   const d = dat(S, 'threat_model') || {};
   const all = list(d.threats);
   const byCat = Object.fromEntries(CATEGORIES.map((c) => [c.id, all.filter((t) => catOf(t.category)?.id === c.id).length]));
+  const byStatus = Object.fromEntries(Object.keys(VERIFY).map((k) => [k, all.filter((t) => statusOf(t) === k).length]));
   const assumptions = list(d.assumptions);
   const suggestions = list(d.improvement_suggestions);
   const qrows = (rows, ic) => rows.map((x) => `<div class="q-row">${icon(ic)}<div class="x">${esc(x)}</div></div>`).join('');
@@ -379,7 +393,10 @@ function viewThreats(S, box) {
       <div class="search tm-search">${icon('search')}<input class="input sm" id="tm-q" placeholder="Search threats…" value="${esc(S.q)}" aria-label="Search threats" /></div>
     </div>
     <div class="row wrap tm-bulk">
+      <div class="filters" id="tm-vf" aria-label="Filter by attack-path verification"><button class="filt ${!S.vf ? 'on' : ''}" data-vf="" title="Every threat, verified or not">Any status</button>
+        ${Object.entries(VERIFY).map(([k, v]) => `<button class="filt ${S.vf === k ? 'on' : ''}" data-vf="${k}" title="${esc(v.tip)}">${icon(v.ic)}${v.short}<span class="n">${byStatus[k]}</span></button>`).join('')}</div>
       <span class="small muted" id="tm-shown"></span><span class="spacer"></span>
+      <button class="btn sm" id="tm-reverify" title="Check every threat's attack path against the current code again (no AI)">${icon('refresh')} Re-verify against code</button>
       <button class="btn sm" id="tm-add" title="Add a threat by hand">${icon('plus')} Add threat</button>
     </div>
     <div id="tm-list"></div>
@@ -396,6 +413,14 @@ function viewThreats(S, box) {
     drawThreatList(S, box);
   });
   box.querySelector('#tm-q').addEventListener('input', (e) => { S.q = e.target.value; drawThreatList(S, box); });
+  box.querySelector('#tm-vf').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-vf]');
+    if (!b) return;
+    S.vf = b.dataset.vf;
+    box.querySelectorAll('#tm-vf [data-vf]').forEach((x) => x.classList.toggle('on', x === b));
+    drawThreatList(S, box);
+  });
+  box.querySelector('#tm-reverify').addEventListener('click', (e) => reverify(S, e.currentTarget));
   box.querySelector('#tm-add').addEventListener('click', () => { S.edit = 'new'; S.editVals = {}; drawThreatList(S, box); box.querySelector('#tf-title')?.focus(); });
   wireThreatList(S, box);
   drawThreatList(S, box);
@@ -404,6 +429,7 @@ function viewThreats(S, box) {
 function shownThreats(S) {
   const q = S.q.trim().toLowerCase();
   return list(dat(S, 'threat_model')?.threats).filter((t) => (!S.cat || catOf(t.category)?.id === S.cat)
+    && (!S.vf || statusOf(t) === S.vf)
     && (!q || [t.id, t.title, t.component, t.scenario, t.impact, t.category, ...FRAMEWORKS.flatMap(([k]) => list(t[k]))].join(' ').toLowerCase().includes(q)));
 }
 
@@ -434,6 +460,7 @@ function threatRow(t, dr) {
       <div class="row wrap" style="gap:6px">
         <span class="tm-cat">${esc(c?.id || t.category || 'Uncategorised')}</span>
         <span class="mono muted">${esc(t.id)}</span>
+        ${verifyBadge(t)}
         ${dr?.rating ? `${ratingPill(dr.rating)}<span class="small muted" title="DREAD score">DREAD ${esc(dr.score)}</span>` : ''}
         ${t.likelihood_hint ? `<span class="tag" title="Likelihood">${esc(t.likelihood_hint)}</span>` : ''}
         ${devil({ type: 'threat', kind: 'threat_model', ref: t.id })}
@@ -444,6 +471,7 @@ function threatRow(t, dr) {
       ${t.impact ? `<p class="tm-text"><b>Impact</b>${esc(t.impact)}</p>` : ''}
       ${tags ? `<div class="tm-tags">${tags}</div>` : ''}
       ${list(t.evidence).length ? `<div class="tm-tags" title="Code references that support this threat">${list(t.evidence).map((e) => `<span class="tag mono">${icon('code')} ${esc(e)}</span>`).join('')}</div>` : ''}
+      ${attackPathBlock(t)}
     </div>
     <div class="tm-actions">
       <div class="row" style="gap:4px;justify-content:flex-end">
@@ -614,17 +642,52 @@ async function mountDiagram(S, box, kind, source) {
 }
 
 // ------------------------------------------------------------------ attack tree
+const TREE_STATUS = {
+  verified: { label: 'Proven in code', cls: 'ts-proven', tip: 'Backed by a verified attack path: entry point, flow and sink found in the code with no blocking control' },
+  unverified: { label: 'Hypothetical', cls: 'ts-hypo', tip: 'No verified attack path in the code backs this step' },
+  mitigated: { label: 'Blocked', cls: 'ts-blocked', tip: 'A control found in the code blocks this attack' },
+};
+const treeBadge = (n) => {
+  const st = TREE_STATUS[n.status];
+  return st ? `<span class="tag tm-ts ${st.cls}" title="${esc(`${st.tip}${n.why ? ` — ${n.why}` : ''}`)}">${esc(st.label)}</span>` : '';
+};
+
+function treeProofPanel(d) {
+  if (!('goal_status' in d)) return '';
+  const v = d.verification || {};
+  const paths = list(d.verified_paths);
+  const reach = d.goal_status === 'verified';
+  return `<div class="tm-tree-proof">
+    <div class="row wrap" style="gap:6px;align-items:center">
+      <span class="tag tm-ts ${reach ? 'ts-proven' : 'ts-hypo'}" title="Whether the attacker goal is reachable through attacks proven in the code">${icon(reach ? 'alert' : 'check')} Goal ${reach ? 'reachable through a proven attack' : 'not proven reachable'}</span>
+      <span class="small muted">Leaves: <b>${v.verified || 0}</b> proven · ${v.unverified || 0} hypothetical · ${v.mitigated || 0} blocked</span>
+      <span class="spacer"></span>
+      <span class="tm-legend small"><i class="lg ts-proven"></i>Proven <i class="lg ts-hypo"></i>Hypothetical <i class="lg ts-blocked"></i>Blocked</span>
+      <label class="small tm-proven-toggle" title="Draw only the routes proven from the goal down to the code"><input type="checkbox" id="tm-tree-proven" ${d.mermaid_verified ? '' : 'disabled'} /> Proven routes only</label>
+    </div>
+    ${paths.length ? `<details class="tm-proven" open><summary>${icon('target')} ${plural(paths.length, 'proven attack path')}</summary><ol class="small">${paths.map((p) => `<li>${p.nodes.map(esc).join(' <span class="muted">→</span> ')}${list(p.proof).map((x) => ` <span class="tag mono" title="Verified attack path of ${esc(x.threat_id)}">${esc(x.threat_id)} ${esc(x.entry)} → ${esc(x.sink)}</span>`).join('')}</li>`).join('')}</ol></details>`
+      : '<p class="small muted" style="margin:6px 0 0">No route from the goal is proven end to end in the code yet.</p>'}
+  </div>`;
+}
+
 function viewTree(S, box) {
   const d = dat(S, 'attack_tree') || {};
   const nodes = list(d.nodes);
   const tmap = threatMap(S);
+  const proven = S.treeProven && d.mermaid_verified;
   box.innerHTML = `
     ${d.goal ? `<div class="tm-goal">${icon('target')}<div><div class="label">Attacker goal</div><div>${esc(d.goal)}</div></div></div>` : ''}
+    ${treeProofPanel(d)}
     ${diagramHTML()}
     ${nodes.length ? `<details class="tm-outline" open><summary>${icon('list')} Outline <span class="muted">· ${plural(nodes.length, 'node')}</span></summary>
       <div class="tm-tree">${outline(nodes, tmap)}</div></details>` : ''}`;
   wireThreatLinks(S, box);
-  mountDiagram(S, box, 'attack_tree', d.mermaid || treeMermaid(d));
+  const toggle = box.querySelector('#tm-tree-proven');
+  if (toggle) {
+    toggle.checked = !!proven;
+    toggle.addEventListener('change', () => { S.treeProven = toggle.checked; viewTree(S, box); });
+  }
+  mountDiagram(S, box, 'attack_tree', proven ? d.mermaid_verified : d.mermaid || treeMermaid(d));
 }
 
 function outline(nodes, tmap) {
@@ -636,7 +699,8 @@ function outline(nodes, tmap) {
     if (seen.has(String(n.id))) return '';
     seen.add(String(n.id));
     const type = TREE_TYPES[n.type] ? n.type : 'leaf';
-    const head = `<span class="tm-nt t-${type}">${TREE_TYPES[type]}</span><span class="tm-nl">${esc(n.label || n.id)}</span>${list(n.threat_ids).map((id) => threatChip(id, tmap)).join('')}${devil({ type: 'threat', kind: 'attack_tree', ref: n.id })}`;
+    const proof = list(n.proof).map((x) => `<span class="tag mono" title="Verified attack path of ${esc(x.threat_id)}">${icon('code')} ${esc(x.entry)} → ${esc(x.sink)}</span>`).join('');
+    const head = `<span class="tm-nt t-${type}">${TREE_TYPES[type]}</span><span class="tm-nl">${esc(n.label || n.id)}</span>${treeBadge(n)}${list(n.threat_ids).map((id) => threatChip(id, tmap)).join('')}${proof}${devil({ type: 'threat', kind: 'attack_tree', ref: n.id })}`;
     const inner = list(n.children).map((id) => index.get(String(id))).filter(Boolean).map(node).join('');
     return inner ? `<details open class="tm-node"><summary>${head}</summary><div class="tm-kids">${inner}</div></details>` : `<div class="tm-node leaf">${head}</div>`;
   };

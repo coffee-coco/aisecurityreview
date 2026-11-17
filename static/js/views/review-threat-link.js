@@ -4,6 +4,7 @@ import { api } from '../api.js';
 import { renderMermaid } from '../mermaid.js';
 import { cap, confirmDialog, esc, icon, ratingPill, timeAgo, toast } from '../ui.js';
 import { devil } from '../devil.js';
+import { attackPathBlock, isVerified, verifyBadge } from '../attack-path.js';
 
 const ARTIFACTS = [
   ['threat_model', 'Threat Model'], ['attack_tree', 'Attack Tree'], ['dfd', 'Data Flow Diagram'],
@@ -203,14 +204,16 @@ function threatsBody(S, tm) {
   const dread = Object.fromEntries(list(dat(tm, 'dread')?.assessments).map((a) => [String(a.threat_id), a]));
   const byCat = Object.fromEntries(CATEGORIES.map((c) => [c.id, all.filter((t) => catOf(t.category)?.id === c.id).length]));
   const shown = shownThreats(S, tm);
-  const todo = shown.filter((t) => !t.item_id).length;
+  const todo = shown.filter((t) => !t.item_id && isVerified(t)).length;
+  const held = shown.filter((t) => !t.item_id && !isVerified(t)).length;
   return `<div class="row wrap tm-tools">
       <div class="filters"><button class="filt ${!cat ? 'on' : ''}" data-cat="">All<span class="n">${all.length}</span></button>
         ${CATEGORIES.filter((c) => byCat[c.id] || cat === c.id).map((c) => `<button class="filt ${cat === c.id ? 'on' : ''}" data-cat="${esc(c.id)}" style="--c:${c.color}"><i></i>${c.id}<span class="n">${byCat[c.id]}</span></button>`).join('')}</div>
       <span class="spacer"></span>
       <span class="small muted">${all.filter((t) => t.item_id).length} of ${plural(all.length, 'threat')} promoted</span>
-      ${todo ? `<button class="btn sm primary" data-promote-all>${icon('flag')} Promote all (${todo})</button>` : ''}
+      ${todo ? `<button class="btn sm primary" data-promote-all title="Promote every threat with a verified attack path">${icon('flag')} Promote verified (${todo})</button>` : ''}
     </div>
+    ${held ? `<div class="small muted" style="margin:6px 0 10px">${icon('alert')} ${plural(held, 'threat')} without a verified attack path ${held === 1 ? 'is' : 'are'} not promoted to risks by default: nothing in the code proves ${held === 1 ? 'it' : 'they'} can be attacked.</div>` : ''}
     ${shown.map((t) => threatRow(t, dread[String(t.id)], tm.id)).join('') || '<div class="empty" style="padding:24px"><p>No threats in this category.</p></div>'}`;
 }
 
@@ -221,6 +224,7 @@ function threatRow(t, dr, tmId) {
       <div class="row wrap" style="gap:6px">
         <span class="tm-cat">${esc(c?.id || t.category || 'Uncategorised')}</span>
         <span class="mono muted">${esc(t.id)}</span>
+        ${verifyBadge(t)}
         ${dr?.rating ? `${ratingPill(dr.rating)}<span class="small muted" title="DREAD score">DREAD ${esc(dr.score)}</span>` : ''}
         ${devil({ type: 'threat', kind: 'threat_model', ref: t.id, owner: tmId })}
       </div>
@@ -229,10 +233,13 @@ function threatRow(t, dr, tmId) {
       ${t.scenario ? `<p class="tm-text"><b>Scenario</b>${esc(t.scenario)}</p>` : ''}
       ${t.impact ? `<p class="tm-text"><b>Impact</b>${esc(t.impact)}</p>` : ''}
       ${list(t.evidence).length ? `<div class="tm-tags" title="Code references that support this threat">${t.evidence.map((e) => `<span class="tag mono">${icon('code')} ${esc(e)}</span>`).join('')}</div>` : ''}
+      ${attackPathBlock(t)}
     </div>
     <div class="tm-actions">${t.item_id
       ? `<span class="small" style="color:var(--ok)">${icon('check')} Promoted</span><button class="btn sm" data-open-risk="${t.item_id}">${icon('flag')} Open risk</button>`
-      : `<button class="btn sm primary" data-promote>${icon('flag')} Promote to risk</button>`}</div>
+      : isVerified(t)
+        ? `<button class="btn sm primary" data-promote>${icon('flag')} Promote to risk</button>`
+        : `<button class="btn sm" data-promote-override title="No verified attack path - promote only as an explicit reviewer override">${icon('alert')} Promote anyway…</button>`}</div>
   </article>`;
 }
 
@@ -332,13 +339,19 @@ async function onClick(S, e) {
     act(b, async () => apply(S, await api.del(base), `${tm.ref} unlinked`));
     return;
   }
-  const promote = (ids) => act(b, async () => {
-    const res = await api.post(`${base}/promote`, { threat_ids: ids });
+  const promote = (ids, override = false) => act(b, async () => {
+    const res = await api.post(`${base}/promote`, { threat_ids: ids, include_unverified: override });
     const n = list(res.created).length;
     apply(S, res, n ? `${plural(n, 'risk')} added to Line items` : 'Already in Line items');
   });
   if ('promote' in b.dataset) { const tid = b.closest('[data-tid]').dataset.tid; promote(threatsOf(tm).filter((t) => String(t.id) === tid).map((t) => t.id)); return; }
-  if ('promoteAll' in b.dataset) { promote(shownThreats(S, tm).filter((t) => !t.item_id).map((t) => t.id)); return; }
+  if ('promoteAll' in b.dataset) { promote(shownThreats(S, tm).filter((t) => !t.item_id && isVerified(t)).map((t) => t.id)); return; }
+  if ('promoteOverride' in b.dataset) {
+    const t = threatsOf(tm).find((x) => String(x.id) === b.closest('[data-tid]').dataset.tid);
+    if (!t || !(await confirmDialog(`Promote ${t.id} without a verified attack path?`, `Nothing in the code proves this threat can be attacked: ${(t.verification?.reasons || ['not verified']).join(' ')} It will be rated as a risk anyway and the override is recorded on the risk.`, 'Promote anyway'))) return;
+    promote([t.id], true);
+    return;
+  }
   const addMits = (ids) => act(b, async () => apply(S, await api.post(`${base}/mitigations/promote`, { ids }), `${plural(ids.length, 'mitigation')} added to Mitigating controls`));
   if ('mit' in b.dataset) { const mid = b.closest('[data-mid]').dataset.mid; addMits(mitsOf(tm).filter((m) => String(m.id) === mid).map((m) => m.id)); return; }
   if ('mitAll' in b.dataset) { addMits(mitsOf(tm).filter((m) => !m.mitigation_id).map((m) => m.id)); return; }

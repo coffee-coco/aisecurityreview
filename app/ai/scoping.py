@@ -298,8 +298,13 @@ def build_user_prompt(review: dict, catalog: Catalog) -> str:
                                  "top_findings": [f["title"] for f in (code.get("findings") or [])[:15]]}
     tms = [t for t in review.get("linked_threat_models") or [] if t.get("threats")]
     if tms:
+        # only threats with a verified attack path inform the risk rating; hypothetical ones are counted, not used
         intake["threat_models"] = [{"title": t["title"], "summary": t["summary"],
-                                    "threats": [f"[{x['category']}] {x['title']}" for x in t["threats"][:30]]}
+                                    "threats_with_verified_attack_paths": [
+                                        f"[{x['category']}] {x['title']}" for x in t["threats"]
+                                        if x.get("attack_path_status") == "verified"][:30],
+                                    "unverified_threats_excluded": sum(
+                                        x.get("attack_path_status") != "verified" for x in t["threats"])}
                                    for t in tms]
     return (
         "## Review intake\n" + json.dumps(intake, indent=2) +

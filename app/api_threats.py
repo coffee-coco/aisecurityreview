@@ -18,13 +18,14 @@ from .api_files import _docs, _read_limited, _review_dir
 from .config import UPLOAD_DIR
 from .items import load_mitigations
 from .threat import DOWNSTREAM, KINDS, store
-from .threat.context import build_context, detect_app_type
+from .threat.context import build_context, detect_app_type, verification_inputs
 from .threat.drawio import DiagramError, parse_drawio
 from .threat.export import render_export
 from .threat.generators import GENERATORS, MissingThreatModel, dfd_from_image, require_threats
 from .threat.normalize import normalize_artifact, normalize_dfd
 from .threat.references import select_cards
 from .threat.source import assess_inputs
+from .threat.verify import is_verified, verify_threats
 
 router = APIRouter(prefix="/api")
 
@@ -102,12 +103,36 @@ def get_threats(review_id: int):
 
 
 @router.get("/reviews/{review_id}/threats/export.md", response_class=PlainTextResponse)
-def export_threats(review_id: int):
+def export_threats(review_id: int, include_unverified: bool = False):
     with db.tx() as conn:
         review = _get_tm(conn, review_id)
         arts = store.get_artifacts(conn, review_id)
-    return PlainTextResponse(render_export(review, arts), headers={
+    return PlainTextResponse(render_export(review, arts, include_unverified), headers={
         "Content-Disposition": f'attachment; filename="{review["ref"]}-threat-model.md"'})
+
+
+@router.post("/reviews/{review_id}/threats/verify")
+async def reverify_threats(review_id: int):
+    """Re-check every threat's attack path against the current code (no AI): after the code changed, a repository
+    sync or a hand edit. DREAD scores of threats that are no longer verified are dropped."""
+    arts = _artifacts(review_id)
+    tm = (arts.get("threat_model") or {}).get("data")
+    if not (tm or {}).get("threats"):
+        raise HTTPException(400, "Generate the threat model first.")
+    paths, routes = await asyncio.to_thread(verification_inputs, review_id)
+    counts = await asyncio.to_thread(verify_threats, tm["threats"], paths, routes)
+    tm["verification"] = counts
+    with db.tx() as conn:
+        review = _get_tm(conn, review_id)
+        store.update_data(conn, review_id, "threat_model", tm)
+        arts = store.get_artifacts(conn, review_id)
+        if arts.get("dread"):
+            store.update_data(conn, review_id, "dread", normalize_artifact(
+                "dread", arts["dread"]["data"], app_type=detect_app_type(review), prior=arts,
+                register=load_mitigations(conn, review_id)))
+        db.log_activity(conn, review_id, "threat", "Attack paths re-verified against the code: "
+                        + ", ".join(f"{n} {k}" for k, n in counts.items()))
+    return {"verification": counts, "artifacts": _artifacts(review_id)}
 
 
 # --------------------------------------------------------------------------- generate
@@ -175,9 +200,12 @@ async def generate_artifact(review_id: int, kind: str, body: Optional[GenerateBo
     _llm_required()
     if kind in DOWNSTREAM:
         try:
-            require_threats(prior)
+            threats = require_threats(prior)
         except MissingThreatModel as e:
             raise HTTPException(400, str(e))
+        if kind == "dread" and not any(is_verified(t) for t in threats):
+            raise HTTPException(400, "No threat has a verified attack path, so there is nothing to score with DREAD. "
+                                     "Link the source code and regenerate the threat model, or re-verify it.")
     return {"job_id": jobs.start_job(review_id, f"threat_{kind}", "threat_artifact", review_id=review_id, kind=kind,
                                      instructions=body.instructions, refine=body.refine)}
 

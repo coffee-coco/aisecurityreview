@@ -29,27 +29,59 @@ def _nid(node_id: str) -> str:
     return f"n_{node_id}"
 
 
-def attack_tree_mermaid(data: dict) -> str:
-    nodes = data.get("nodes") or []
+TREE_CLASSES = {  # attack semantics: a proven attack is the danger, a blocked one is the good news
+    "verified": "fill:#3b0d12,stroke:#f87171,stroke-width:3px,color:#fecaca",
+    "unverified": "fill:#111627,stroke:#71717a,stroke-dasharray:5 4,color:#a1a1aa",
+    "mitigated": "fill:#052e1a,stroke:#34d399,color:#bbf7d0",
+}
+
+
+def attack_tree_mermaid(data: dict, verified_only: bool = False) -> str:
+    """Attack tree as a Mermaid flowchart. When nodes carry a verification ``status`` (``verify.annotate_tree``),
+    proven attacks are drawn red with bold edges, hypothetical ones grey and dashed, blocked ones green, and proven
+    leaves show the entry → sink of the code path. ``verified_only`` draws just the routes proven from the goal down
+    to the code."""
+    nodes = [n for n in data.get("nodes") or [] if not verified_only or n.get("proven_route")]
+    if not nodes:
+        return ""
     known = {n["id"] for n in nodes}
     lines = ["flowchart TD"]
     leaves = []
     for n in nodes:
         text = n["label"] + (f" [{', '.join(n['threat_ids'])}]" if n.get("threat_ids") else "")
+        proof = (n.get("proof") or [None])[0]
         mid, t = _nid(n["id"]), n["type"]
+        body = label(text) + (f"<br/>✓ {label(proof['entry'], 60)} → {label(proof['sink'], 60)}" if proof else "")
         if t == "goal":
-            lines.append(f'    {mid}(["{label(text)}"])')
+            lines.append(f'    {mid}(["{body}"])')
         elif t == "and":
-            lines.append(f'    {mid}{{{{"AND: {label(text)}"}}}}')
+            lines.append(f'    {mid}{{{{"AND: {body}"}}}}')
         elif t == "or":
-            lines.append(f'    {mid}["OR: {label(text)}"]')
+            lines.append(f'    {mid}["OR: {body}"]')
         else:
-            lines.append(f'    {mid}("{label(text)}")')
+            lines.append(f'    {mid}("{body}")')
             leaves.append(mid)
+    edges, styled = [], {"verified": [], "unverified": []}
+    by_id = {n["id"]: n for n in nodes}
     for n in nodes:
         for c in n.get("children") or []:
             if c in known:
-                lines.append(f"    {_nid(n['id'])} --> {_nid(c)}")
+                if by_id[c].get("proven_route") and n.get("proven_route"):  # part of an attack proven end to end
+                    styled["verified"].append(len(edges))
+                elif by_id[c].get("status") == "unverified":
+                    styled["unverified"].append(len(edges))
+                edges.append(f"    {_nid(n['id'])} --> {_nid(c)}")
+    lines += edges
+    statuses = {s: [_nid(n["id"]) for n in nodes if n.get("status") == s] for s in TREE_CLASSES}
+    if any(statuses.values()):
+        for s, ids in statuses.items():
+            if ids:
+                lines += [f"    classDef {s} {TREE_CLASSES[s]};", f"    class {','.join(ids)} {s};"]
+        if styled["verified"]:
+            lines.append(f"    linkStyle {','.join(map(str, styled['verified']))} stroke:#f87171,stroke-width:3px;")
+        if styled["unverified"]:
+            lines.append(f"    linkStyle {','.join(map(str, styled['unverified']))} stroke:#71717a,stroke-dasharray:4 4;")
+        return "\n".join(lines)
     goals = [_nid(n["id"]) for n in nodes if n["type"] == "goal"]
     if goals:
         lines += ["    classDef goal fill:#fde2e2,stroke:#b42318,stroke-width:2px;",

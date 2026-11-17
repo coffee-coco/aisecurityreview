@@ -16,6 +16,7 @@ from .items import create_item, create_mitigation, link, load_mitigations, mitig
 from .library import mitigation_library
 from .profile import CLASS_IMPACT, IMPACT, LIKELIHOOD, SEVERITY_TO_LI, effective_class, risk_rating, similarity
 from .threat import KINDS, store
+from .threat.verify import STATUS_LABEL, is_verified, status_of
 
 router = APIRouter(prefix="/api")
 
@@ -39,6 +40,7 @@ class LinkBody(BaseModel):
 
 class PromoteThreatsBody(BaseModel):
     threat_ids: list[str] = []
+    include_unverified: bool = False  # explicit reviewer override: rate a threat without a verified attack path
 
 
 class PromoteMitigationsBody(BaseModel):
@@ -209,16 +211,18 @@ def _link_ctx(conn, review_id: int, tm_id: int) -> tuple[dict, dict, dict]:
     return review, tm, links
 
 
-def _promote_threats(conn, review: dict, tm: dict, arts: dict, ids: list[str], links: dict) -> list[int]:
-    """Create a risk item in the review per threat (skipping ones already promoted)."""
+def _promote_threats(conn, review: dict, tm: dict, arts: dict, ids: list[str], links: dict,
+                     include_unverified: bool = False) -> list[int]:
+    """Create a risk item in the review per threat (skipping ones already promoted). Only threats with a verified
+    attack path are rated into the risk register unless the reviewer explicitly overrides that."""
     review_id = review["id"]
     threats = {t["id"]: t for t in ((arts.get("threat_model") or {}).get("data") or {}).get("threats") or []}
     dread = {a["threat_id"]: a for a in ((arts.get("dread") or {}).get("data") or {}).get("assessments") or []}
     mits = ((arts.get("mitigations") or {}).get("data") or {}).get("mitigations") or []
-    created = []
+    created, overridden = [], []
     for tid in ids:
         t = threats.get(tid)
-        if not t or t.get("item_id"):
+        if not t or t.get("item_id") or (not is_verified(t) and not include_unverified):
             continue
         d = dread.get(tid)
         lk, ik = _likelihood_impact(t, d, review)
@@ -227,7 +231,10 @@ def _promote_threats(conn, review: dict, tm: dict, arts: dict, ids: list[str], l
                 *(t.get("mitre_atlas") or [])]
         notes = [f"Component: {t['component']}" if t.get("component") else "",
                  f"Framework mappings: {', '.join(r for r in refs if r)}" if any(refs) else "",
-                 f"Code: {', '.join(t['evidence'])}" if t.get("evidence") else ""]
+                 f"Code: {', '.join(t['evidence'])}" if t.get("evidence") else "",
+                 f"Attack path: {STATUS_LABEL[status_of(t)]}"
+                 + ("" if is_verified(t) else " - promoted by reviewer override: "
+                    + "; ".join((t.get("verification") or {}).get("reasons") or []))]
         rationale = (f"Threat model {tm['ref']} {tid} ({t['category']})"
                      + (f"; CSF {', '.join(t['csf'])}" if t.get("csf") else "")
                      + (f"; DREAD {d['score']} ({d['rating']})" if d else ""))
@@ -244,9 +251,14 @@ def _promote_threats(conn, review: dict, tm: dict, arts: dict, ids: list[str], l
         t["item_id"] = item_id
         links["threats"][tid] = {"item_id": item_id, "title": t["title"]}
         created.append(item_id)
+        if not is_verified(t):
+            overridden.append(tid)
     if created:
         db.log_activity(conn, review_id, "risk", f"Promoted {len(created)} threat(s) from {tm['ref']} to the risk "
                         "register")
+    if overridden:
+        db.log_activity(conn, review_id, "risk", f"Reviewer override: promoted {', '.join(overridden)} from "
+                        f"{tm['ref']} without a verified attack path")
     return created
 
 
@@ -258,10 +270,19 @@ def promote_threats(review_id: int, tm_id: int, body: PromoteThreatsBody):
         threats = ((arts["threat_model"] or {}).get("data") or {}).get("threats") or []
         if not threats:
             raise HTTPException(400, f"{tm['ref']} has no threats yet - generate them on the Threat models page.")
-        created = _promote_threats(conn, review, tm, arts, _select(body.threat_ids, [t["id"] for t in threats]), links)
+        ids = _select(body.threat_ids, [t["id"] for t in threats])
+        by_id = {t["id"]: t for t in threats}
+        held = [tid for tid in ids if not is_verified(by_id[tid]) and not by_id[tid].get("item_id")]
+        if held and body.threat_ids and not body.include_unverified:
+            raise HTTPException(409, f"{', '.join(held)} {'has' if len(held) == 1 else 'have'} no verified attack "
+                                     "path, so the risk cannot be rated from evidence. Re-verify or regenerate the "
+                                     "threat model, or confirm the override to add it anyway.")
+        created = _promote_threats(conn, review, tm, arts, ids, links, body.include_unverified)
         threat_models.save_links(conn, review_id, tm_id, links)
         db.touch(conn, review_id)
-    return {"created": created, **_linked_payload(review_id), "review": get_review(review_id)}
+    skipped = [] if body.include_unverified else held
+    return {"created": created, "skipped_unverified": skipped, **_linked_payload(review_id),
+            "review": get_review(review_id)}
 
 
 @router.post("/reviews/{review_id}/threat-models/{tm_id}/mitigations/promote")

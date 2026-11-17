@@ -7,6 +7,7 @@ The attack tree, mitigations, DREAD and test cases are derived from the threat m
 """
 from __future__ import annotations
 
+import asyncio
 import json
 
 from ..ai.providers import LLM, Attachment, ProviderError
@@ -22,6 +23,7 @@ from .prompts import (
     TEST_CASES_SYSTEM, THREAT_SYSTEM,
 )
 from .references import cards, prompt_section, select_cards
+from .verify import is_verified, path_summary, status_of, verify_threats
 
 FIELD_SCHEMA = {
     "owasp_top10": '"owasp_top10": "A01:2025" or null, ',
@@ -52,7 +54,8 @@ def require_threats(prior: dict) -> list[dict]:
 
 def _threat_section(threats: list[dict]) -> str:
     return "\n\n## Threat model\n" + json.dumps(
-        [{k: t[k] for k in THREAT_KEYS if t.get(k)} for t in threats], indent=1)
+        [{**{k: t[k] for k in THREAT_KEYS if t.get(k)}, "attack_path_status": status_of(t),
+          **({"attack_path": path_summary(t)} if t.get("attack_path") else {})} for t in threats], indent=1)
 
 
 def _extras(instructions: str, previous: dict | None, what: str) -> str:
@@ -98,6 +101,8 @@ async def generate_threat_model(llm: LLM, ctx: dict, prior: dict, instructions: 
                                   csf_ids=set(get_catalog().subcategories), prior=current, by_id=bool(previous),
                                   known_files=set(ctx.get("known_files") or ()))
     data = _require(data, "threats", "threats")
+    data["verification"] = await asyncio.to_thread(
+        verify_threats, data["threats"], ctx.get("source_paths") or {}, ctx.get("routes") or [])
     if ctx.get("inputs"):  # what this run was based on, shown with the result
         data["inputs"] = {**ctx["inputs"], "source": (ctx.get("source") or {}).get("stats")}
     return data
@@ -110,7 +115,7 @@ async def generate_attack_tree(llm: LLM, ctx: dict, prior: dict, instructions: s
     user = render_context(ctx, source=False) + _threat_section(threats) + _extras(instructions, previous,
                                                                                    "attack tree")
     raw = await llm.complete_json(ATTACK_TREE_SYSTEM + _guidance("attack_tree", ctx["app_type"]), user)
-    return _require(normalize_attack_tree(raw, {t["id"] for t in threats}), "nodes", "attack tree")
+    return _require(normalize_attack_tree(raw, {t["id"] for t in threats}, threats), "nodes", "attack tree")
 
 
 async def generate_dfd(llm: LLM, ctx: dict, prior: dict, instructions: str = "", refine: bool = False) -> dict:
@@ -146,7 +151,11 @@ async def generate_mitigations(llm: LLM, ctx: dict, prior: dict, instructions: s
 
 
 async def generate_dread(llm: LLM, ctx: dict, prior: dict, instructions: str = "", refine: bool = False) -> dict:
-    threats = require_threats(prior)
+    """DREAD scores only threats with a verified attack path; hypothetical ones are not rated."""
+    threats = [t for t in require_threats(prior) if is_verified(t)]
+    if not threats:
+        raise MissingThreatModel("No threat has a verified attack path, so there is nothing to score with DREAD. "
+                                 "Link the source code and regenerate the threat model, or re-verify it.")
     previous = _data(prior, "dread") if refine else None
     user = render_context(ctx, documents=False) + _threat_section(threats) + _extras(instructions, previous,
                                                                                       "DREAD assessment")

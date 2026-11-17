@@ -17,6 +17,7 @@ from .config import DEFAULT_MODELS, SECRET_SETTINGS
 from .items import create_item, load_items, load_mitigations
 from .report import render_markdown
 from .threat import store as threat_store
+from .threat.verify import status_of
 
 router = APIRouter(prefix="/api")
 
@@ -161,7 +162,8 @@ def _attach_threat_models(conn, review: dict) -> None:
         dfd = (arts.get("dfd") or {}).get("data") or {}
         briefs.append({
             "id": tm["id"], "ref": tm["ref"], "title": tm["title"], "summary": data.get("summary") or "",
-            "threats": [{k: t.get(k) for k in ("id", "title", "category", "component")} for t in data.get("threats") or []],
+            "threats": [{**{k: t.get(k) for k in ("id", "title", "category", "component")},
+                         "attack_path_status": status_of(t)} for t in data.get("threats") or []],
             "data_flow_diagram": {k: dfd.get(k) for k in ("nodes", "edges", "trust_boundaries")} if dfd.get("nodes") else None,
         })
     review["linked_threat_models"] = briefs

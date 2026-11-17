@@ -14,6 +14,7 @@ import asyncio
 import copy
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -26,11 +27,13 @@ from .api import _get_review
 from .api_items import _unpromote
 from .catalog import get_catalog
 from .config import AI_BATCH_CONCURRENCY
+from .grounding import CodeEvidence
 from .items import load_items, load_mitigations
 from .profile import profile_summary
 from .threat import DOWNSTREAM, store
 from .threat.context import detect_app_type
 from .threat.normalize import normalize_artifact
+from .threat.verify import STATUS_LABEL, status_of
 
 router = APIRouter(prefix="/api")
 log = logging.getLogger("sentinel.devil")
@@ -60,6 +63,33 @@ MODE_LABEL = {"devil": "Devil's advocate", "review": "AI review"}
 DEFAULT_CHALLENGE = "This entry is not accurate or not aligned with this application - justify it or correct it."
 MAX_BATCH = 300
 
+GROUNDING_RULES = """How to weigh the evidence:
+- Threats need PROOF THAT THEY CAN BE ATTACKED. entry.attack_path_verification is a deterministic check of the
+  attack path behind a threat (and behind a DREAD score or a risk promoted from a threat): an attacker-reachable
+  entry point, the flow and the vulnerable sink, each quoted from real code and found in the files, with the
+  controls along the path reviewed and none blocking it.
+  - status "verified": the path is proven. Uphold a challenge only by naming a concrete flaw in it (a step that
+    does not reach the next, an entry an attacker cannot reach, a control on the path the check missed); "it is
+    unlikely" is not a flaw.
+  - status "unverified" or "mitigated": the threat is not proven attackable. Uphold the challenge. Recommend
+    "remove" (when entry.can_remove is true), or "revise" to state plainly that it is a hypothetical design
+    concern with no attack path in the code. That the system uses AI, handles sensitive data or "could" be
+    attacked is never enough.
+- For entries that are not threats (controls, questions, summaries), the components, technologies, data and files
+  they depend on must still be established by the context.
+- The burden of proof is on the entry. An empty or silent context does NOT support it: if nothing in the
+  description, tech stack, profile, design, documents or code establishes the premise, the premise is unsupported.
+- Never infer components from names alone (repository, project, review or file names, titles).
+- application.code_evidence, when present, is a deterministic scan of the linked source code: AI dependencies and
+  model calls, prompt files and the file tree. entry.cited_files says whether each file the entry names really
+  exists in that code, with an excerpt, or which files only mention it. Use these facts yourself - never answer that
+  "confirmation from the codebase would settle it" when code_evidence is present.
+- A cited file that is not in the code is an unsupported detail even when a design note mentions it: correct the
+  entry to cite what does exist, or to say the detail comes from design documents.
+- When code evidence and the profile disagree (profile_conflicts), the code wins; say the profile needs correcting.
+- No code_evidence means no code is linked: judge on the remaining context only, and say that linking the
+  repository would let the premise be verified."""
+
 DEVIL_SYSTEM = """You are an impartial principal security architect adjudicating a devil's-advocate challenge in a
 security design review. A reviewer has challenged ONE entry (a risk, mitigating control, question, code finding,
 threat-model element, design summary or description), arguing it is wrong, exaggerated, unsupported or not aligned
@@ -67,13 +97,20 @@ with this application.
 
 Test the challenge against the evidence in "application" - do not agree by default and do not defend the entry by
 default.
-- Uphold the challenge when the application context does not support the entry or contradicts it.
-- Reject it when the context does support the entry, and cite the specific evidence (description, technologies,
-  profile, design, code findings, linked threat models).
-- If the entry is partly right, correct only what is wrong so it fits this application and keep what is supported.
-- Never invent technologies, components, data or facts that are not in the context. If the context is too thin to
-  decide, say so (verdict "inconclusive"), recommend "keep" and state what evidence would settle it.
-- Recommend "remove" only when the entry has no basis for this application at all and entry.can_remove is true.
+
+""" + GROUNDING_RULES + """
+
+Verdicts:
+- "upheld": the context does not establish the entry's premise, contradicts it, or (for a threat) its attack path
+  is not verified. Recommend "remove" when nothing supports it and entry.can_remove is true, otherwise "revise".
+- "partly_upheld": the premise is established but details are wrong or unsupported (a missing file, the wrong
+  component, an overstated impact). Recommend "revise" and correct only what is wrong, keeping what is supported.
+- "rejected": the context supports the entry - for a threat, its attack path is verified; cite the specific
+  evidence (entry and sink file:line, dependency, description, profile, design, code findings). Recommend "keep".
+- "inconclusive": ONLY when the context holds real evidence pointing both ways, or the code that would decide it
+  was not scanned (code_evidence.partial). Silence is not inconclusive. Recommend "keep" and name the exact file,
+  document or fact that would settle it.
+- Never invent technologies, components, data or facts that are not in the context.
 
 Return JSON only:
 {"verdict": "upheld" | "partly_upheld" | "rejected" | "inconclusive",
@@ -87,13 +124,22 @@ REVIEW_SYSTEM = """You are a principal security architect doing a quality review
 review (a risk, mitigating control, question, code finding, threat-model element, design summary or description).
 Check that it is accurate, specific to this application, clearly written and actionable, using only the evidence in
 "application". If the reviewer gave "instructions", follow them.
-- Accurate and specific: say so (verdict "aligned", recommendation "keep").
-- Can be improved: rewrite only the fields that need it, naming the application's actual components, data and
-  technologies from the context (verdict "needs_improvement", recommendation "revise").
-- Does not apply to this application at all: explain why (verdict "not_applicable", recommendation "remove" when
-  entry.can_remove is true, otherwise "revise").
-- Never invent technologies, components, data or facts that are not in the context; if the context is too thin,
-  use verdict "inconclusive" and recommendation "keep".
+
+""" + GROUNDING_RULES + """
+
+Verdicts:
+- Accurate, specific and its premise is evidenced (for a threat: its attack path is verified): say so (verdict
+  "aligned", recommendation "keep").
+- A threat whose attack path is unverified or mitigated is not proven: verdict "not_applicable", recommendation
+  "remove" when entry.can_remove is true, otherwise "revise" to mark it as a hypothetical design concern.
+- Can be improved (vague, or cites files or components the evidence does not show): rewrite only the fields that
+  need it, naming the application's actual components, data, technologies and files from the context (verdict
+  "needs_improvement", recommendation "revise").
+- Its premise is not established by the context at all: explain why (verdict "not_applicable", recommendation
+  "remove" when entry.can_remove is true, otherwise "revise").
+- "inconclusive" (recommendation "keep") only when the evidence points both ways or the deciding code was not
+  scanned; name what would settle it.
+- Never invent technologies, components, data or facts that are not in the context.
 
 Return JSON only:
 {"verdict": "aligned" | "needs_improvement" | "not_applicable" | "inconclusive",
@@ -148,6 +194,8 @@ class Entry:
     fields: dict[str, str]
     can_remove: bool = True
     related: list[str] = field(default_factory=list)
+    refs: list[str] = field(default_factory=list)  # code references the entry carries ("path/file.py:42")
+    attack_path: dict | None = None  # verification of the threat behind the entry (threats, DREAD, promoted risks)
 
 
 # --------------------------------------------------------------------------- adapters
@@ -200,6 +248,32 @@ def _own_row(conn, owner: int) -> dict:
     return db.review_row(conn.execute("SELECT * FROM reviews WHERE id = %s", (owner,)).fetchone())
 
 
+def _attack_path(threat: dict | None) -> dict | None:
+    """The deterministic attack-path verification of a threat, as the judge sees it."""
+    if not threat:
+        return None
+    v = threat.get("verification") or {}
+    return {"status": status_of(threat), "label": STATUS_LABEL[status_of(threat)], "reasons": v.get("reasons") or [],
+            "steps": [{k: s.get(k) for k in ("step", "file", "line", "code", "explains", "verified", "reason")
+                       if s.get(k) not in (None, "")} for s in threat.get("attack_path") or []],
+            "controls_checked": threat.get("controls_checked") or "",
+            "blocking_controls": [f"{b.get('file')}:{b.get('line')} {b.get('explains') or ''}".strip()
+                                  for b in threat.get("blocking_controls") or []]}
+
+
+def _promoted_threat(conn, library_ref: str) -> dict | None:
+    """The threat a risk was promoted from (library_ref 'threat:TM-0005:T3')."""
+    m = re.fullmatch(r"threat:TM-(\d+):(T\d+)", library_ref or "")
+    if not m:
+        return None
+    row = conn.execute("SELECT id FROM reviews WHERE id = %s AND workspace_id = %s AND kind = 'threat_model'",
+                       (int(m.group(1)), db.workspace_id())).fetchone()
+    if not row:
+        return None
+    data = (store.get_artifact(conn, row["id"], "threat_model") or {}).get("data") or {}
+    return next((x for x in data.get("threats") or [] if x.get("id") == m.group(2)), None)
+
+
 def load_entry(conn, owner: int, t: Target) -> Entry:
     if t.type == "item":
         i = _item(conn, owner, t.ref)
@@ -210,8 +284,12 @@ def load_entry(conn, owner: int, t: Target) -> Entry:
         if i["is_risk"]:
             related.append(f"Rated {i['likelihood'] or '?'} likelihood x {i['impact'] or '?'} impact")
         kind = "Risk" if i["is_risk"] else i["kind"].capitalize()
+        src = _promoted_threat(conn, i.get("library_ref") or "")
+        if src:
+            related.append(f"Promoted from threat {i['library_ref'].split(':', 1)[1]}; attack path: "
+                           f"{STATUS_LABEL[status_of(src)]}")
         return Entry(f"{i['label']} {i['display_title']}".strip(), kind, {f: i.get(f) or "" for f in _item_fields(i)},
-                     related=related)
+                     related=related, attack_path=_attack_path(src))
     if t.type == "mitigation":
         m = next((m for m in load_mitigations(conn, owner) if str(m["id"]) == t.ref), None)
         if not m:
@@ -227,7 +305,8 @@ def load_entry(conn, owner: int, t: Target) -> Entry:
         related = [f"Severity {f.get('severity')}, category {f.get('category')}, source {f.get('source')}",
                    f"Evidence files: {', '.join(files[:10]) or 'none'}"]
         fields = {k: f.get(k) or "" for k in ("title", "description", "recommendation")}
-        return Entry(f["title"], "Code finding", fields, related=related)
+        refs = [f"{e['file']}:{e['line']}" if e.get("line") else e["file"] for e in f.get("evidence") or [] if e.get("file")]
+        return Entry(f["title"], "Code finding", fields, related=related, refs=refs[:8])
     if t.type == "threat":
         arts, _, e = _threat_entry(conn, owner, t.kind, t.ref)
         _, idk, names, type_label = THREAT_SPEC[t.kind]
@@ -236,13 +315,19 @@ def load_entry(conn, owner: int, t: Target) -> Entry:
         related = [f"Addresses threats: {'; '.join(f'{r} {titles.get(r, '')}' for r in refs)}"] if refs else []
         if t.kind == "threat_model":
             related.append(f"Category {e.get('category')}, component {e.get('component') or 'unspecified'}")
+            related.append(f"Code evidence cited by the threat model: {', '.join(e.get('evidence') or []) or 'none'}")
+        if t.kind == "attack_tree" and e.get("status"):
+            related.append(f"Proof status: {e['status']} - {e.get('why') or ''}".strip(" -"))
         if t.kind == "dread":
             related.append("Scores: " + ", ".join(f"{k} {e.get(k)}" for k in
                                                  ("damage", "reproducibility", "exploitability", "affected_users",
                                                   "discoverability")))
         name = e.get("title") or e.get("label") or titles.get(str(e.get("threat_id")), "")
+        threats = {str(x.get("id")): x for x in ((arts.get("threat_model") or {}).get("data") or {}).get("threats") or []}
+        behind = e if t.kind == "threat_model" else threats.get(str(e.get("threat_id"))) if t.kind == "dread" else None
         return Entry(f"{e.get(idk)} {name}".strip(), type_label, {k: str(e.get(k) or "") for k in names},
-                     related=related)
+                     related=related, refs=[str(x) for x in e.get("evidence") or []][:8],
+                     attack_path=_attack_path(behind))
     if t.type == "design":
         d = _own_row(conn, owner).get("design") or {}
         if not d.get("analyzed_at"):
@@ -336,9 +421,27 @@ def _context(review: dict) -> dict:
                               "findings": [f"[{f.get('severity')}] {f.get('title')}" for f in code.get("findings") or []][:25]}
     if review.get("linked_threat_models"):
         ctx["linked_threat_models"] = [{"ref": t["ref"], "title": t["title"], "summary": (t.get("summary") or "")[:600],
-                                        "threats": [x.get("title") for x in t.get("threats") or []][:15]}
+                                        "threats": [f"{x.get('title')} ({STATUS_LABEL.get(x.get('attack_path_status'), 'Unverified')})"
+                                                    for x in t.get("threats") or []][:15]}
                                        for t in review["linked_threat_models"]]
     return ctx
+
+
+def _code_evidence(review: dict) -> CodeEvidence | None:
+    try:
+        return CodeEvidence.build(review)
+    except Exception:  # noqa: BLE001 - grounding is best effort; the judge still runs on the intake context
+        log.exception("Code evidence for review %s failed", review.get("id"))
+        return None
+
+
+async def _grounded_context(review: dict) -> tuple[dict, CodeEvidence | None]:
+    """The judge's context plus the linked code's evidence (file reads run off the event loop)."""
+    ctx = _context(review)
+    code = await asyncio.to_thread(_code_evidence, review)
+    if code is not None:
+        ctx["code_evidence"] = await asyncio.to_thread(code.summary)
+    return ctx, code
 
 
 def _clean_result(res: dict, entry: Entry, mode: str) -> dict:
@@ -401,10 +504,18 @@ def _entry_payload(entry: Entry) -> dict:
                        for k, v in entry.fields.items()]}
 
 
-async def adjudicate(llm: LLM, context: dict, entry: Entry, mode: str, question: str) -> dict:
+async def adjudicate(llm: LLM, context: dict, entry: Entry, mode: str, question: str,
+                     code: CodeEvidence | None = None) -> dict:
     payload = {"application": context,
                "entry": {"type": entry.type_label, "label": entry.label, "can_remove": entry.can_remove,
                          "editable_fields": entry.fields, "related": entry.related}}
+    if entry.attack_path is not None:
+        payload["entry"]["attack_path_verification"] = entry.attack_path
+    if code is not None:
+        text = "\n".join([*entry.fields.values(), question])
+        cited = await asyncio.to_thread(code.check_entry, text, entry.refs)
+        if cited:
+            payload["entry"]["cited_files"] = cited
     if mode == "devil":
         payload["challenge"] = question.strip() or DEFAULT_CHALLENGE
     elif question.strip():
@@ -428,7 +539,8 @@ async def devil_challenge(review_id: int, body: ChallengeBody):
         review = _get_review(conn, review_id)
         entry = load_entry(conn, review_id, body.target)
     try:
-        res = await adjudicate(llm, _context(review), entry, body.mode, body.question)
+        ctx, code = await _grounded_context(review)
+        res = await adjudicate(llm, ctx, entry, body.mode, body.question, code)
     except ProviderError as e:
         raise HTTPException(502, str(e)) from e
     return {**res, "provider": llm.label}
@@ -452,17 +564,20 @@ def devil_batch(review_id: int, body: BatchBody):
 @jobs.handler("devil_batch")
 async def devil_batch_job(progress, mode: str, question: str, targets: list[dict]):
     llm = _require_llm()
-    contexts: dict[int, dict] = {}
+    reviews: dict[int, dict] = {}
     entries: list[tuple[Target, Entry | None, str]] = []
     with db.tx() as conn:
         for raw in targets:
             t = Target(**raw)
             try:
-                if t.owner not in contexts:
-                    contexts[t.owner] = _context(_get_review(conn, t.owner))
+                if t.owner not in reviews:
+                    reviews[t.owner] = _get_review(conn, t.owner)
                 entries.append((t, load_entry(conn, t.owner, t), ""))
             except HTTPException as e:
                 entries.append((t, None, str(e.detail)))
+    await progress(0.02, "Reading the linked code…")
+    contexts: dict[int, tuple[dict, CodeEvidence | None]] = {
+        owner: await _grounded_context(review) for owner, review in reviews.items()}
     total, done = len(entries), 0
     sem = asyncio.Semaphore(AI_BATCH_CONCURRENCY)
     await progress(0.03, f"{MODE_LABEL[mode]}: {total} entr{'y' if total == 1 else 'ies'}, "
@@ -474,7 +589,8 @@ async def devil_batch_job(progress, mode: str, question: str, targets: list[dict
         if entry is not None:
             async with sem:
                 try:
-                    res = await adjudicate(llm, contexts[t.owner], entry, mode, question)
+                    ctx, code = contexts[t.owner]
+                    res = await adjudicate(llm, ctx, entry, mode, question, code)
                     proposed = res.pop("fields")
                     out.update(res, proposed=proposed)
                 except ProviderError as e:
