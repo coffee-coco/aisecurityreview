@@ -1,4 +1,0 @@
-pass:
-  - "ncloud_access_control_group.pass"
-fail:
-  - "ncloud_access_control_group.fail"

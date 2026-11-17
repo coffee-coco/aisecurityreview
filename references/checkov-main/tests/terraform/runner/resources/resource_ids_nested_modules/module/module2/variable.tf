@@ -1,3 +1,0 @@
-variable "acl" {
-  type = string
-}

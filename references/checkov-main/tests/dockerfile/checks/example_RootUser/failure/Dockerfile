@@ -1,3 +1,0 @@
-FROM base
-
-USER root

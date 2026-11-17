@@ -1,8 +1,0 @@
-{
-  "Resources": {
-    "InvalidProperties": {
-      "Type": "AWS::Serverless::Function",
-      "Properties": "NotObject"
-    }
-  }
-}

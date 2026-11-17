@@ -1,3 +1,0 @@
-FROM php:7.1-apache
-
-RUN apk --no-cache add nginx

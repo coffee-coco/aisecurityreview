@@ -1,7 +1,0 @@
-{
-  "Resources": {
-    "NoPropertiesJson": {
-      "Type": "AWS::Serverless::Function"
-    }
-  }
-}

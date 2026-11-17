@@ -1,7 +1,0 @@
-pass:
-  - "Microsoft.MachineLearningServices/workspaces.pass"
-  - "Microsoft.MachineLearningServices/workspaces.pass2"
-fail:
-  - "Microsoft.MachineLearningServices/workspaces.fail"
-evaluated_keys:
-  - 'properties/publicNetworkAccess'

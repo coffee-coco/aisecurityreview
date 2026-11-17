@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: CronJob
-metadata:
-  labels:
-    name: nginx-pod
-  name: nginx-pod
-spec:
-  jobTemplate:
-    spec: null

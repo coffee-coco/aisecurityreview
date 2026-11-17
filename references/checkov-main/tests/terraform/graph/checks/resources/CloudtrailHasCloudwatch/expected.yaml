@@ -1,4 +1,0 @@
-fail:
-  - "aws_cloudtrail.aws_cloudtrail_not_ok"
-pass:
-  - "aws_cloudtrail.aws_cloudtrail_ok"

@@ -1,2 +1,0 @@
-FROM alpine:3.5
-RUN echo "panw" && pip --trusted-host=pypi.python.org --trusted-host=pypi.org install checkov

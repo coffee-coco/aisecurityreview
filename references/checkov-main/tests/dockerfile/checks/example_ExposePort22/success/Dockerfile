@@ -1,3 +1,0 @@
-FROM busybox
-
-EXPOSE 8080

@@ -1,4 +1,0 @@
-pass:
-  - "ncloud_route_table_association.pass"
-fail:
-  - "ncloud_route_table_association.fail"

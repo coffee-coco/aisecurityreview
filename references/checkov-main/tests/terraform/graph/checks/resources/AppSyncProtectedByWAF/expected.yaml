@@ -1,4 +1,0 @@
-pass:
-  - "aws_appsync_graphql_api.pass"
-fail:
-  - "aws_appsync_graphql_api.fail"

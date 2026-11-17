@@ -1,6 +1,0 @@
-pass:
-    - "github_repository.pass"
-    - "github_repository.pass2"
-    - "github_repository.pass_ruleset"
-fail:
-    - "github_repository.fail"

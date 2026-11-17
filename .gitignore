@@ -19,3 +19,4 @@ pgdata/
 .DS_Store
 uploads/*
 uploads/**
+stuff/

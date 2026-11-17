@@ -1,6 +1,0 @@
-pass:
-  - "AWS::AppSync::GraphQLApi.GoodAppSyncGraphQLApi"
-fail: 
-  - "AWS::AppSync::GraphQLApi.NoWAFAppSyncGraphQLApi"
-evaluated_keys:
-  - "resource_type"

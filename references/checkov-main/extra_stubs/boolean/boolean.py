@@ -1,6 +1,0 @@
-class BooleanAlgebra:
-    ...
-
-
-class Expression:
-    ...

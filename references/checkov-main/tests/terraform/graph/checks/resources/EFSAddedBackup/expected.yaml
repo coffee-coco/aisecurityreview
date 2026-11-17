@@ -1,4 +1,0 @@
-pass:
-  - "aws_efs_file_system.ok_efs"
-fail:
-  - "aws_efs_file_system.not_ok_efs"

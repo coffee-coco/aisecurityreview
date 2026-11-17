@@ -1,7 +1,0 @@
-pass:
-  - "http.nonleak2"
-  - "http.nonleak"
-
-
-fail:
-  - "http.leak"

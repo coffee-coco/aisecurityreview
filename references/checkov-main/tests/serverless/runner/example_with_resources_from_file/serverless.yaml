@@ -1,8 +1,0 @@
-service: ig-digital-djumbo-shared-params
-
-provider:
-  name: aws
-  region: us-west-2
-
-resources:
-  - ${file(./Resources.yaml)}

@@ -1,3 +1,0 @@
-ENGINE_VERSION = "11"
-DB_INSTANCE_TYPE = "db.t9.mega"
-ENCRYPTED = true

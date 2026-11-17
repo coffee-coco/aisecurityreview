@@ -1,8 +1,0 @@
-Resources:
-  Mariadb:
-    Type: 'AWS::RDS::DBInstance'
-    Properties:
-      DBInstanceClass: 'db.t3.micro'
-      Engine: 'mariadb'
-      MasterUsername: 'username'
-      MasterUserPassword: 'password'

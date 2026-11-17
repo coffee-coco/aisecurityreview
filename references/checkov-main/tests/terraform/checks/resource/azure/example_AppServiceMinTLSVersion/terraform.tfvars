@@ -1,1 +1,0 @@
-min_tls_version = "1.2"

@@ -1,6 +1,0 @@
-pass:
-  - "aws_autoscaling_attachment.test_ok_attachment"
-  - "aws_autoscaling_attachment.alb_pass"
-fail:
-  - "aws_autoscaling_attachment.test_bad_attachment"
-  - "aws_autoscaling_attachment.alb_fail"

@@ -1,4 +1,0 @@
-pass:
-  - "aws_wafv2_web_acl.pass"
-fail:
-  - "aws_wafv2_web_acl.fail"

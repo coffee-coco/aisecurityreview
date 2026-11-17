@@ -1,9 +1,0 @@
---- a/terraform/aws/neptune.tf
-+++ b/terraform/aws/neptune.tf
-@@ -41,5 +41,5 @@
- resource "aws_neptune_cluster_snapshot" "default" {
-   db_cluster_identifier          = aws_neptune_cluster.default.id
-   db_cluster_snapshot_identifier = "resourcetestsnapshot1"
-+  kms_key_id                     = "arn:aws:kms:us-east-1:123456789012:key/12345678-1234-1234-1234-123456789012"
- }
--

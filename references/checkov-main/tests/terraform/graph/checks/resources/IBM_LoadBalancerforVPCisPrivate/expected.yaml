@@ -1,5 +1,0 @@
-pass:
-  - "ibm_is_lb.pass"
-  - "ibm_is_lb.pass_private_path"
-fail:
-  - "ibm_is_lb.fail"

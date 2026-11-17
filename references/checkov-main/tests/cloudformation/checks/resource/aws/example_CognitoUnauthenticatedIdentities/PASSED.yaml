@@ -1,8 +1,0 @@
-AWSTemplateFormatVersion: 2010-09-09
-Description: Identity pool
-Resources:
-  Pass:
-    Type: AWS::Cognito::IdentityPool
-    Properties:
-      AllowClassicFlow: True
-      AllowUnauthenticatedIdentities: False

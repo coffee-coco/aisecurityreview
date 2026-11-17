@@ -1,4 +1,0 @@
-pass:
-  - "Deployment.default.passing-selector-deployment"
-fail:
-  - "Deployment.default.failing-selector-deployment"

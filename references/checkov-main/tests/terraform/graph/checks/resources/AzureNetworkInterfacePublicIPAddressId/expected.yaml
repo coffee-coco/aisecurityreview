@@ -1,4 +1,0 @@
-pass:
-  - "azurerm_network_interface.good"
-fail:
-  - "azurerm_network_interface.bad"

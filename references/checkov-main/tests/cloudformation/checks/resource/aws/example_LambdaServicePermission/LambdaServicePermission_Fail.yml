@@ -1,9 +1,0 @@
-AWSTemplateFormatVersion: "2010-09-09"
-Resources:
-  FunctionFailPermission:
-    Type: AWS::Lambda::Permission
-    Properties:
-      Action: lambda:InvokeFunction
-      FunctionName: TestFunction
-      Principal: apigateway.amazonaws.com
-

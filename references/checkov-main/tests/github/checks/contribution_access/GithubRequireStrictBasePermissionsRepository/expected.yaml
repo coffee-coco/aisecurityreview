@@ -1,4 +1,0 @@
-pass:
-  - "pass_org_metadata.json"
-fail:
-  - "fail_org_metadata.json"

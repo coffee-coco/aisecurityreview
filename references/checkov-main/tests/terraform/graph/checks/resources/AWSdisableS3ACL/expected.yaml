@@ -1,4 +1,0 @@
-fail:
-  - "aws_s3_bucket_ownership_controls.pud_bucket_fail"
-pass:
-  - "aws_s3_bucket_ownership_controls.pud_bucket_pass"

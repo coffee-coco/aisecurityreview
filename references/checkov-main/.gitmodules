@@ -1,3 +1,0 @@
-[submodule "checkov/sast/sast_core"]
-	path = checkov/sast/sast_core
-	url = git@github.com:bridgecrewio/SAST-Core.git

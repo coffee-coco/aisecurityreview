@@ -1,4 +1,0 @@
----
-# Test comment.
-framework: terraform
-output: json

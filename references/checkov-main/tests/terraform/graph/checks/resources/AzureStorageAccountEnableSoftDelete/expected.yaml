@@ -1,7 +1,0 @@
-pass:
-  - "azurerm_storage_account.pass_1"
-  - "azurerm_storage_account.pass_2"
-
-fail:
-  - "azurerm_storage_account.fail_1"
-  - "azurerm_storage_account.fail_2"

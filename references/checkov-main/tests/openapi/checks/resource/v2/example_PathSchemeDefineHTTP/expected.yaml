@@ -1,7 +1,0 @@
-pass:
-  - "pass.yaml"
-  - "pass2.yaml"
-  - "pass.json"
-fail:
-  - "fail.json"
-  - "fail.yaml"

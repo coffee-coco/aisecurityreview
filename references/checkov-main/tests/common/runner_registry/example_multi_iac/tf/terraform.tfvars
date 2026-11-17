@@ -1,1 +1,0 @@
-VERSIONING = true

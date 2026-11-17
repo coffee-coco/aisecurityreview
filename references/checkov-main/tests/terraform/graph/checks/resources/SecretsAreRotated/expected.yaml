@@ -1,6 +1,0 @@
-pass:
-  - "aws_secretsmanager_secret.pass"
-
-fail:
-  - "aws_secretsmanager_secret.fail"
-

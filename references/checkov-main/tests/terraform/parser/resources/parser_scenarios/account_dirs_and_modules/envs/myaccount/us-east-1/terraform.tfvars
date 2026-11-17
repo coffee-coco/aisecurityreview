@@ -1,3 +1,0 @@
-ENGINE_VERSION = "11"
-DB_INSTANCE_TYPE = "db.t3.small"
-ENCRYPTED = true

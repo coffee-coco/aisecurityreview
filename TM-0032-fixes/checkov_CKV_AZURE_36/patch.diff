@@ -1,9 +1,0 @@
---- a/terraform/azure/storage.tf
-+++ b/terraform/azure/storage.tf
-@@ -65,5 +65,5 @@
- 
-   default_action = "Deny"
-   ip_rules       = ["127.0.0.1"]
--  bypass         = ["Metrics"]
-+  bypass         = ["Metrics", "AzureServices"]
- }

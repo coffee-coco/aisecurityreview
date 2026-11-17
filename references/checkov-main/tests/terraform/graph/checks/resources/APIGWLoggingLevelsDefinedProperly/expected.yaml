@@ -1,4 +1,0 @@
-pass:
-  - "aws_api_gateway_stage.ok_example"
-fail:
-  - "aws_api_gateway_stage.not_connected"
